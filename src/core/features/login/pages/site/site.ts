@@ -293,6 +293,7 @@ export class CoreLoginSitePage implements OnInit {
         e?.preventDefault();
         e?.stopPropagation();
 
+        url = 'https://edueye.co';
         CoreKeyboard.close();
 
         if (!url) {
