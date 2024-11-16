@@ -73,7 +73,8 @@ export class CoreAuthenticatedSite extends CoreUnauthenticatedSite {
         '4.2': 2023042400,
         '4.3': 2023100900,
         '4.4': 2024042200,
-        '4.5': 2024081600, // @TODO correct the final release date.
+        '4.5': 2024100700,
+        '5.0': 2024100800, // @todo [5.0] replace with right value when released. Using a tmp value to be able to test new things.
     };
 
     // Possible cache update frequencies.

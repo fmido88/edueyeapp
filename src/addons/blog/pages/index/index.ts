@@ -29,7 +29,6 @@ import { AddonBlogOffline, AddonBlogOfflineEntry } from '@addons/blog/services/b
 import { AddonBlogSync } from '@addons/blog/services/blog-sync';
 import { Component, computed, OnDestroy, OnInit, signal } from '@angular/core';
 import { CoreComments } from '@features/comments/services/comments';
-import { CoreMainMenuDeepLinkManager } from '@features/mainmenu/classes/deep-link-manager';
 import { CoreTag } from '@features/tag/services/tag';
 import { CoreAnalytics, CoreAnalyticsEventType } from '@services/analytics';
 import { CoreNavigator } from '@services/navigator';
@@ -202,8 +201,7 @@ export class AddonBlogIndexPage implements OnInit, OnDestroy {
         this.commentsEnabled = CoreComments.areCommentsEnabledInSite();
         this.tagsEnabled = CoreTag.areTagsAvailableInSite();
 
-        const deepLinkManager = new CoreMainMenuDeepLinkManager();
-        deepLinkManager.treatLink();
+        CoreSites.loginNavigationFinished();
 
         await this.fetchEntries(false, false, true);
         this.optionsAvailable = await AddonBlog.isEditingEnabled();
@@ -410,7 +408,7 @@ export class AddonBlogIndexPage implements OnInit, OnDestroy {
      * Redirect to entry creation form.
      */
     createNewEntry(): void {
-        CoreNavigator.navigateToSitePath('blog/edit/0', { params: { cmId: this.filter.cmid } });
+        CoreNavigator.navigateToSitePath('blog/edit/0', { params: { cmId: this.filter.cmid, courseId: this.filter.courseid } });
     }
 
     /**
@@ -419,6 +417,12 @@ export class AddonBlogIndexPage implements OnInit, OnDestroy {
      * @param entryToRemove Entry.
      */
     async deleteEntry(entryToRemove: AddonBlogOfflinePostFormatted | AddonBlogPostFormatted): Promise<void> {
+        try {
+            await CoreDomUtils.showDeleteConfirm('addon.blog.blogdeleteconfirm', { $a: entryToRemove.subject });
+        } catch {
+            return;
+        }
+
         const loading = await CoreLoadings.show();
 
         try {

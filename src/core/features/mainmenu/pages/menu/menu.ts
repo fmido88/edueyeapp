@@ -23,7 +23,7 @@ import { CoreMainMenuDelegate, CoreMainMenuHandlerToDisplay } from '../../servic
 import { Router } from '@singletons';
 import { CoreUtils } from '@services/utils/utils';
 import { CoreAriaRoleTab, CoreAriaRoleTabFindable } from '@classes/aria-role-tab';
-import { CoreNavigationOptions, CoreNavigator } from '@services/navigator';
+import { CoreNavigator } from '@services/navigator';
 import { filter } from 'rxjs/operators';
 import { NavigationEnd } from '@angular/router';
 import { trigger, state, style, transition, animate } from '@angular/animations';
@@ -32,6 +32,9 @@ import { CoreDom } from '@singletons/dom';
 import { CoreLogger } from '@singletons/logger';
 import { CorePlatform } from '@services/platform';
 import { CoreWait } from '@singletons/wait';
+import { CoreMainMenuDeepLinkManager } from '@features/mainmenu/classes/deep-link-manager';
+import { CoreSiteInfoUserHomepage } from '@classes/sites/unauthenticated-site';
+import { CoreContentLinksHelper } from '@features/contentlinks/services/contentlinks-helper';
 
 const ANIMATION_DURATION = 500;
 
@@ -83,9 +86,6 @@ export class CoreMainMenuPage implements OnInit, OnDestroy {
     protected backButtonFunction: (event: BackButtonEvent) => void;
     protected selectHistory: string[] = [];
     protected firstSelectedTab?: string;
-    protected urlToOpen?: string;
-    protected redirectPath?: string;
-    protected redirectOptions?: CoreNavigationOptions;
     protected logger: CoreLogger;
 
     @ViewChild('mainTabs') mainTabs?: IonTabs;
@@ -111,9 +111,8 @@ export class CoreMainMenuPage implements OnInit, OnDestroy {
      */
     async ngOnInit(): Promise<void> {
         this.showTabs = true;
-        this.urlToOpen = CoreNavigator.getRouteParam('urlToOpen');
-        this.redirectPath = CoreNavigator.getRouteParam('redirectPath');
-        this.redirectOptions = CoreNavigator.getRouteParam('redirectOptions');
+
+        this.initAfterLoginNavigations();
 
         this.isMainScreen = !this.mainTabs?.outlet.canGoBack();
         this.updateVisibility();
@@ -213,14 +212,41 @@ export class CoreMainMenuPage implements OnInit, OnDestroy {
             // Use navigate instead of mainTabs.select to be able to pass page params.
             CoreNavigator.navigateToSitePath(tabPage, {
                 preferCurrentTab: false,
-                params: {
-                    urlToOpen: this.urlToOpen,
-                    redirectPath: this.redirectPath,
-                    redirectOptions: this.redirectOptions,
-                    ...tabPageParams,
-                },
+                params: tabPageParams,
             });
         }
+    }
+
+    /**
+     * Set up the code to run after the login navigation finishes.
+     */
+    protected initAfterLoginNavigations(): void {
+        // Treat custom home page and deep link (if any) when the login navigation finishes.
+        const deepLinkManager = new CoreMainMenuDeepLinkManager();
+
+        CoreSites.runAfterLoginNavigation({
+            priority: 800,
+            callback: async () => {
+                await deepLinkManager.treatLink();
+            },
+        });
+
+        CoreSites.runAfterLoginNavigation({
+            priority: 1000,
+            callback: async () => {
+                const userHomePage = CoreSites.getCurrentSite()?.getInfo()?.userhomepage;
+                if (userHomePage !== CoreSiteInfoUserHomepage.HOMEPAGE_URL) {
+                    return;
+                }
+
+                const url = CoreSites.getCurrentSite()?.getInfo()?.userhomepageurl;
+                if (!url) {
+                    return;
+                }
+
+                await CoreContentLinksHelper.handleLink(url);
+            },
+        });
     }
 
     /**

@@ -26,7 +26,13 @@ import { CoreGroups } from '@services/groups';
 import { CoreSitesCommonWSOptions, CoreSites, CoreSitesReadingStrategy } from '@services/sites';
 import { CoreUrl } from '@singletons/url';
 import { CoreUtils } from '@services/utils/utils';
-import { CoreStatusWithWarningsWSResponse, CoreWSExternalFile, CoreWSExternalWarning, CoreWSStoredFile } from '@services/ws';
+import {
+    CoreStatusWithWarningsWSResponse,
+    CoreWSExternalFile,
+    CoreWSExternalWarning,
+    CoreWSFile,
+    CoreWSStoredFile,
+} from '@services/ws';
 import { makeSingleton, Translate } from '@singletons';
 import { AddonModForumOffline, AddonModForumOfflineDiscussion, AddonModForumReplyOptions } from './forum-offline';
 import { CoreSiteWSPreSets } from '@classes/sites/authenticated-site';
@@ -41,6 +47,7 @@ import {
     ADDON_MOD_FORUM_PREFERENCE_SORTORDER,
     ADDON_MOD_FORUM_REPLY_DISCUSSION_EVENT,
     AddonModForumSortorder,
+    AddonModForumType,
 } from '../constants';
 
 declare module '@singletons/events' {
@@ -411,7 +418,10 @@ export class AddonModForumProvider {
      * @param options Other options.
      * @returns Promise resolved when the forums are retrieved.
      */
-    async getCourseForums(courseId: number, options: CoreSitesCommonWSOptions = {}): Promise<AddonModForumData[]> {
+    async getCourseForums(
+        courseId: number,
+        options: CoreSitesCommonWSOptions = {},
+    ): Promise<AddonModForumGetForumsByCoursesWSResponse> {
         const site = await CoreSites.getSite(options.siteId);
 
         const params: AddonModForumGetForumsByCoursesWSParams = {
@@ -477,8 +487,7 @@ export class AddonModForumProvider {
      */
     async getForum(courseId: number, cmId: number, options: CoreSitesCommonWSOptions = {}): Promise<AddonModForumData> {
         const forums = await this.getCourseForums(courseId, options);
-
-        const forum = forums.find(forum => forum.cmid == cmId);
+        const forum = forums.find(forum => forum.cmid === cmId);
 
         if (!forum) {
             throw new CoreError(Translate.instant('core.course.modulenotfound'));
@@ -606,7 +615,11 @@ export class AddonModForumProvider {
         };
 
         const site = await CoreSites.getSite(options.siteId);
+
         const isGetDiscussionPostsAvailable = this.isGetDiscussionPostsAvailable(site);
+        if (isGetDiscussionPostsAvailable && site.isVersionGreaterEqualThan('4.0')) {
+            (params as AddonModForumGetDiscussionPostsWSParams).includeinlineattachments = true;
+        }
 
         const response = isGetDiscussionPostsAvailable
             ? await site.read<AddonModForumGetDiscussionPostsWSResponse>('mod_forum_get_discussion_posts', params, preSets)
@@ -1265,6 +1278,35 @@ export class AddonModForumProvider {
     }
 
     /**
+     * Prepare post for edition.
+     *
+     * @param postId Post ID.
+     * @param area Area to prepare.
+     * @param options Other options.
+     * @returns Data of prepared area.
+     */
+    async preparePostForEdition(
+        postId: number,
+        area: 'attachment'|'post',
+        options: AddonModForumPreparePostOptions = {},
+    ): Promise<AddonModForumPrepareDraftAreaForPostWSResponse> {
+        const site = await CoreSites.getSite(options.siteId);
+
+        const params: AddonModForumPrepareDraftAreaForPostWSParams = {
+            postid: postId,
+            area: area,
+        };
+        if (options.filesToKeep?.length) {
+            params.filestokeep = options.filesToKeep.map(file => ({
+                filename: file.filename ?? '',
+                filepath: file.filepath ?? '',
+            }));
+        }
+
+        return await site.write('mod_forum_prepare_draft_area_for_post', params);
+    }
+
+    /**
      * Update a certain post.
      *
      * @param postId ID of the post being edited.
@@ -1346,7 +1388,7 @@ type AddonModForumGetForumsByCoursesWSParams = {
 export type AddonModForumData = {
     id: number; // Forum id.
     course: number; // Course id.
-    type: string; // The forum type.
+    type: AddonModForumType; // The forum type.
     name: string; // Forum name.
     intro: string; // The forum intro.
     introformat: number; // Intro format (1 = HTML, 0 = MOODLE, 2 = PLAIN or 4 = MARKDOWN).
@@ -1381,6 +1423,11 @@ export type AddonModForumData = {
     istracked?: boolean; // If the user is tracking the forum.
     unreadpostscount?: number; // The number of unread posts for tracked forums.
 };
+
+/**
+ * Data returned by mod_forum_get_forums_by_courses WS.
+ */
+type AddonModForumGetForumsByCoursesWSResponse = AddonModForumData[];
 
 /**
  * Forum discussion.
@@ -1713,11 +1760,6 @@ export type AddonModForumGetForumDiscussionsPaginatedWSResponse = {
 };
 
 /**
- * Data returned by mod_forum_get_forums_by_courses WS.
- */
-export type AddonModForumGetForumsByCoursesWSResponse = AddonModForumData[];
-
-/**
  * Array options of mod_forum_add_discussion WS.
  */
 export type AddonModForumAddDiscussionWSOptionsArray = {
@@ -1903,6 +1945,7 @@ export type AddonModForumGetDiscussionPostsWSParams = {
     discussionid: number; // The ID of the discussion from which to fetch posts.
     sortby?: string; // Sort by this element: id, created or modified.
     sortdirection?: string; // Sort direction: ASC or DESC.
+    includeinlineattachments?: boolean; // @since 4.0. Whether inline attachments should be included or not.
 };
 
 /**
@@ -2085,6 +2128,46 @@ export type AddonModForumUpdateDiscussionPostWSParams = {
  * Data returned by mod_forum_update_discussion_post WS.
  */
 export type AddonModForumUpdateDiscussionPostWSResponse = CoreStatusWithWarningsWSResponse;
+
+/**
+ * Params of mod_forum_prepare_draft_area_for_post WS.
+ */
+type AddonModForumPrepareDraftAreaForPostWSParams = {
+    postid: number; // Post to prepare the draft area for.
+    area: string; // Area to prepare: attachment or post.
+    draftitemid?: number; // The draft item id to use. 0 to generate one.
+    filestokeep?: AddonModForumFileToKeep[]; // Only keep these files in the draft file area. Empty for keeping all.
+};
+
+/**
+ * Data to pass to mod_forum_prepare_draft_area_for_post to keep a file in the area.
+ */
+type AddonModForumFileToKeep = {
+    filename: string; // File name.
+    filepath: string; // File path.
+};
+
+/**
+ * Data returned by mod_forum_prepare_draft_area_for_post WS.
+ */
+export type AddonModForumPrepareDraftAreaForPostWSResponse = {
+    draftitemid: number; // Draft item id for the file area.
+    files?: CoreWSExternalFile[];
+    areaoptions: { // Draft file area options.
+        name: string; // Name of option.
+        value: string; // Value of option.
+    }[];
+    messagetext: string; // Message text with URLs rewritten.
+    warnings?: CoreWSExternalWarning[];
+};
+
+/**
+ * Options to pass to preparePostForEdition.
+ */
+export type AddonModForumPreparePostOptions = {
+    filesToKeep?: CoreWSFile[]; // Only keep these files in the draft file area. Undefined or empty array for keeping all.
+    siteId?: string;
+};
 
 /**
  * Data passed to NEW_DISCUSSION_EVENT event.
