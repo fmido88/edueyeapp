@@ -513,6 +513,10 @@ export class CoreCoursesProvider {
 
                 // Courses will be sorted using sortorder if available.
                 return response.courses.sort((a, b) => {
+                    if (b.timemodified !== undefined && a.timemodified !== undefined) {
+                        return b.timemodified - a.timemodified;
+                    }
+
                     if (a.sortorder === undefined && b.sortorder === undefined) {
                         return b.id - a.id;
                     }
