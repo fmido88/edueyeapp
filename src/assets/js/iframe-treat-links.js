@@ -15,7 +15,7 @@
 (function () {
     const locationHref = location.href;
 
-    if (locationHref.match(/^moodleappfs:\/\/localhost/i) || !locationHref.match(/^[a-z0-9]+:\/\//i)) {
+    if (locationHref.match(/^edueyeappfs:\/\/localhost/i) || !locationHref.match(/^[a-z0-9]+:\/\//i)) {
         // Same domain as the app, stop.
         return;
     }
@@ -149,7 +149,7 @@
         return scheme == 'cdvfile' ||
                 scheme == 'file' ||
                 scheme == 'filesystem' ||
-                scheme == 'moodleappfs';
+                scheme == 'edueyeappfs';
     }
 
     /**
