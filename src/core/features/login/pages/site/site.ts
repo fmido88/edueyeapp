@@ -18,14 +18,14 @@ import { FormBuilder, FormGroup, ValidatorFn, AbstractControl, ValidationErrors 
 import { CoreNetwork } from '@services/network';
 import { CoreConfig } from '@services/config';
 import { CoreSites, CoreSiteCheckResponse, CoreLoginSiteInfo, CoreSitesDemoSiteData } from '@services/sites';
-import { CoreUtils } from '@services/utils/utils';
+import { CoreUtils } from '@singletons/utils';
 import { CoreDomUtils } from '@services/utils/dom';
 import {
     CoreLoginHelper,
     CoreLoginSiteFinderSettings,
     CoreLoginSiteSelectorListMethod,
 } from '@features/login/services/login-helper';
-import { CoreError } from '@classes/errors/error';
+import { CoreError, CoreErrorDebug } from '@classes/errors/error';
 import { CoreConstants } from '@/core/constants';
 import { Translate } from '@singletons';
 import { CoreUrl, CoreUrlPartNames } from '@singletons/url';
@@ -34,7 +34,7 @@ import { CoreCustomURLSchemes, CoreCustomURLSchemesHandleError } from '@services
 import { CoreErrorHelper } from '@services/error-helper';
 import { CoreForms } from '@singletons/form';
 import { AlertButton } from '@ionic/core';
-import { CoreSiteError, CoreSiteErrorDebug } from '@classes/errors/siteerror';
+import { CoreSiteError } from '@classes/errors/siteerror';
 import { CoreUserSupport } from '@features/user/services/support';
 import { CoreErrorAccordion } from '@services/error-accordion';
 import { CoreUserSupportConfig } from '@features/user/classes/support/support-config';
@@ -49,6 +49,8 @@ import { CoreKeyboard } from '@singletons/keyboard';
 import { CoreModals } from '@services/modals';
 import { CoreQRScan } from '@services/qrscan';
 import { CoreLoadings } from '@services/loadings';
+import { CorePromiseUtils } from '@singletons/promise-utils';
+import { CoreCountries } from '@singletons/countries';
 
 /**
  * Site (url) chooser when adding a new site.
@@ -172,12 +174,15 @@ export class CoreLoginSitePage implements OnInit {
      * @returns Referrer URL, undefined if no URL to use.
      */
     protected async consumeInstallReferrerUrl(): Promise<string | undefined> {
-        const url = await CoreUtils.ignoreErrors(CoreUtils.timeoutPromise(CoreReferrer.consumeInstallReferrerUrl(), 1000));
+        const url = await CorePromiseUtils.ignoreErrors(
+            CorePromiseUtils.timeoutPromise(CoreReferrer.consumeInstallReferrerUrl(), 1000),
+        );
+
         if (!url) {
             return;
         }
 
-        const hasSites = (await CoreUtils.ignoreErrors(CoreSites.getSites(), [])).length > 0;
+        const hasSites = (await CorePromiseUtils.ignoreErrors(CoreSites.getSites(), [])).length > 0;
         if (hasSites) {
             // There are sites stored already, don't use the referrer URL since it's an update or a backup was restored.
             return;
@@ -219,7 +224,7 @@ export class CoreLoginSitePage implements OnInit {
             site.title = name && alias ? name + ' (' + alias + ')' : name + alias;
 
             const country = this.siteFinderSettings.displaycountry && site.countrycode ?
-                CoreUtils.getCountryName(site.countrycode) : '';
+                CoreCountries.getCountryName(site.countrycode) : '';
             const city = this.siteFinderSettings.displaycity && site.city ?
                 site.city : '';
 
@@ -329,14 +334,14 @@ export class CoreLoginSitePage implements OnInit {
             let checkResult: CoreSiteCheckResponse;
 
             try {
-                checkResult = await CoreSites.checkSite(url);
+                checkResult = await CoreSites.checkSite(url, undefined, 'Site URL page');
             } catch (error) {
                 // Attempt guessing the domain if the initial check failed
                 const domain = CoreUrl.guessMoodleDomain(url);
 
                 if (domain && domain != url) {
                     try {
-                        checkResult = await CoreSites.checkSite(domain);
+                        checkResult = await CoreSites.checkSite(domain, undefined, 'Site URL page');
                     } catch (secondError) {
                         // Try to use the first error.
                         modal.dismiss();
@@ -415,7 +420,7 @@ export class CoreLoginSitePage implements OnInit {
      */
     protected async showLoginIssue(url: string, error: CoreError): Promise<void> {
         let errorMessage = CoreDomUtils.getErrorMessage(error);
-        let debug: CoreSiteErrorDebug | undefined;
+        let debug: CoreErrorDebug | undefined;
         let errorTitle: string | undefined;
         let site: CoreUnauthenticatedSite | undefined;
         let supportConfig: CoreUserSupportConfig | undefined;
@@ -476,7 +481,7 @@ export class CoreLoginSitePage implements OnInit {
             const containerElement = alertElement.querySelector('.core-error-accordion-container');
 
             if (containerElement) {
-                await CoreErrorAccordion.render(containerElement, debug.code, debug.details);
+                await CoreErrorAccordion.render(containerElement, debug.details, debug.code);
             }
         }
     }
@@ -604,7 +609,7 @@ export class CoreLoginSitePage implements OnInit {
 
         try {
             // Check if site uses SSO.
-            const siteCheck = await CoreSites.checkSite(siteUrl);
+            const siteCheck = await CoreSites.checkSite(siteUrl, undefined, 'Site URL page');
 
             await CoreSites.checkApplication(siteCheck.config);
 

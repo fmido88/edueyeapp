@@ -22,7 +22,7 @@ import { CoreFile } from '@services/file';
 import { CoreWSExternalWarning } from '@services/ws';
 import { CoreText } from '@singletons/text';
 import { CoreUrl, CoreUrlPartNames } from '@singletons/url';
-import { CoreUtils } from '@services/utils/utils';
+import { CoreOpener } from '@singletons/opener';
 import { CoreConstants } from '@/core/constants';
 import { CoreIonLoadingElement } from '@classes/ion-loading';
 import { CoreCanceledError } from '@classes/errors/cancelederror';
@@ -447,19 +447,8 @@ export class CoreDomUtilsProvider {
         let extraInfo = '';
         let errorMessage: string | undefined;
 
-        if (typeof error == 'object') {
+        if (typeof error === 'object') {
             if (this.debugDisplay) {
-                // Get the debug info. Escape the HTML so it is displayed as it is in the view.
-                if ('debuginfo' in error && error.debuginfo) {
-                    extraInfo = '<br><br>' + CoreText.escapeHTML(error.debuginfo, false);
-                }
-                if ('backtrace' in error && error.backtrace) {
-                    extraInfo += '<br><br>' + CoreText.replaceNewLines(
-                        CoreText.escapeHTML(error.backtrace, false),
-                        '<br>',
-                    );
-                }
-
                 // eslint-disable-next-line no-console
                 console.error(error);
             }
@@ -1061,36 +1050,35 @@ export class CoreDomUtilsProvider {
 
         if (typeof error !== 'string' && 'buttons' in error && typeof error.buttons !== 'undefined') {
             alertOptions.buttons = error.buttons;
-        } else if (error instanceof CoreSiteError) {
-            if (error.debug) {
-                alertOptions.message = `<p>${alertOptions.message}</p><div class="core-error-accordion-container"></div>`;
-            }
-
-            const supportConfig = error.supportConfig;
-
-            alertOptions.buttons = [Translate.instant('core.ok')];
-
-            if (supportConfig?.canContactSupport()) {
-                alertOptions.buttons.push({
-                    text: Translate.instant('core.contactsupport'),
-                    handler: () => CoreUserSupport.contact({
-                        supportConfig,
-                        subject: alertOptions.header,
-                        message: `${error.debug?.code}\n\n${error.debug?.details}`,
-                    }),
-                });
-            }
         } else {
             alertOptions.buttons = [Translate.instant('core.ok')];
         }
 
+        // For site errors, always show debug info.
+        const showDebugInfo = this.debugDisplay || error instanceof CoreSiteError;
+        const debugInfo = showDebugInfo && CoreErrorHelper.getDebugInfoFromError(error);
+        if (debugInfo) {
+            alertOptions.message = `<p>${message}</p><div class="core-error-accordion-container"></div>`;
+        }
+
+        if (error instanceof CoreSiteError && error.supportConfig?.canContactSupport()) {
+            alertOptions.buttons.push({
+                text: Translate.instant('core.contactsupport'),
+                handler: () => CoreUserSupport.contact({
+                    supportConfig: error.supportConfig,
+                    subject: alertOptions.header,
+                    message: `${error.debug?.code}\n\n${error.debug?.details}`,
+                }),
+            });
+        }
+
         const alertElement = await this.showAlertWithOptions(alertOptions, autocloseTime);
 
-        if (error instanceof CoreSiteError && error.debug) {
+        if (debugInfo) {
             const containerElement = alertElement.querySelector('.core-error-accordion-container');
 
             if (containerElement) {
-                await CoreErrorAccordion.render(containerElement, error.debug.code, error.debug.details);
+                await CoreErrorAccordion.render(containerElement, debugInfo.details, debugInfo.code);
             }
         }
 
@@ -1199,7 +1187,7 @@ export class CoreDomUtilsProvider {
             buttons.push({
                 text: Translate.instant('core.download'),
                 handler: (): void => {
-                    CoreUtils.openInBrowser(link, { showBrowserWarning: false });
+                    CoreOpener.openInBrowser(link, { showBrowserWarning: false });
                 },
             });
         }
@@ -1428,7 +1416,7 @@ export class CoreDomUtilsProvider {
                     event.preventDefault();
                     event.stopPropagation();
 
-                    CoreUtils.openInBrowser(href);
+                    CoreOpener.openInBrowser(href);
                 }
             });
         });

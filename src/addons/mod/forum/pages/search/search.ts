@@ -28,8 +28,9 @@ import { CoreNavigator } from '@services/navigator';
 import { CoreSites } from '@services/sites';
 import { CoreDomUtils } from '@services/utils/dom';
 import { CoreUrl } from '@singletons/url';
-import { CoreUtils } from '@services/utils/utils';
+import { CoreUtils } from '@singletons/utils';
 import { Translate } from '@singletons';
+import { CorePromiseUtils } from '@singletons/promise-utils';
 
 @Component({
     selector: 'page-addon-mod-forum-search',
@@ -37,7 +38,7 @@ import { Translate } from '@singletons';
 })
 export class AddonModForumSearchPage implements OnInit {
 
-    loadMoreError: string | null = null;
+    loadMoreError = false;
     searchBanner: string | null = null;
     resultsSource = new CoreSearchGlobalSearchResultsSource('', {});
     forum?: AddonModForumData;
@@ -104,7 +105,7 @@ export class AddonModForumSearchPage implements OnInit {
 
         await CoreDomUtils.showOperationModals('core.searching', true, async () => {
             await this.resultsSource.reload();
-            await CoreUtils.ignoreErrors(
+            await CorePromiseUtils.ignoreErrors(
                 CoreSearchGlobalSearch.logViewResults(this.resultsSource.getQuery(), this.resultsSource.getFilters()),
             );
 
@@ -127,7 +128,7 @@ export class AddonModForumSearchPage implements OnInit {
      * Clear search results.
      */
     clearSearch(): void {
-        this.loadMoreError = null;
+        this.loadMoreError = false;
 
         this.resultsSource.setQuery('');
         this.resultsSource.reset();
@@ -151,7 +152,7 @@ export class AddonModForumSearchPage implements OnInit {
         try {
             await this.resultsSource?.load();
         } catch (error) {
-            this.loadMoreError = CoreDomUtils.getErrorMessage(error);
+            this.loadMoreError = true;
         } finally {
             complete();
         }

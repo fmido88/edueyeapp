@@ -21,7 +21,7 @@ import { CoreConstants } from '@/core/constants';
 import { CoreMainMenu } from '@features/mainmenu/services/mainmenu';
 import { CoreObject } from '@singletons/object';
 import { CoreSites } from '@services/sites';
-import { CoreUtils } from '@services/utils/utils';
+import { CoreUtils } from '@singletons/utils';
 import { CoreUrl, CoreUrlPartNames } from '@singletons/url';
 import { CoreText } from '@singletons/text';
 import { makeSingleton, NavController, Router } from '@singletons';
@@ -33,6 +33,7 @@ import { filter } from 'rxjs/operators';
 import { CorePromisedValue } from '@classes/promised-value';
 import { BehaviorSubject } from 'rxjs';
 import { CoreLoadings } from './loadings';
+import { CorePromiseUtils } from '@singletons/promise-utils';
 
 /**
  * Redirect payload.
@@ -148,6 +149,13 @@ export class CoreNavigatorService {
         const navigationResult = (options.reset ?? false)
             ? await NavController.navigateRoot(url, navigationOptions)
             : await NavController.navigateForward(url, navigationOptions);
+
+        // This is done to exit full screen if the user navigate.
+        if (document.exitFullscreen) {
+            await CorePromiseUtils.ignoreErrors(document.exitFullscreen());
+        } else if (document['webkitExitFullscreen']) {
+            document['webkitExitFullscreen']();
+        }
 
         if (options.nextNavigation?.path && navigationResult !== false) {
             if (options.nextNavigation.isSitePath) {
@@ -460,7 +468,7 @@ export class CoreNavigatorService {
             return route;
         }
 
-        if (routeData && CoreUtils.basicLeftCompare(routeData, this.getRouteData(route), 3)) {
+        if (routeData && CoreObject.basicLeftCompare(routeData, this.getRouteData(route), 3)) {
             return route;
         }
 
@@ -549,7 +557,7 @@ export class CoreNavigatorService {
 
         const currentMainMenuTab = this.getCurrentMainMenuTab();
         const isMainMenuTab = pathRoot === currentMainMenuTab || (!currentMainMenuTab && path === this.getLandingTabPage()) ||
-            await CoreUtils.ignoreErrors(CoreMainMenu.isMainMenuTab(pathRoot), false);
+            await CorePromiseUtils.ignoreErrors(CoreMainMenu.isMainMenuTab(pathRoot), false);
 
         if (!options.preferCurrentTab && isMainMenuTab) {
             return this.navigate(`/main/${path}`, options);
@@ -606,7 +614,7 @@ export class CoreNavigatorService {
     protected replaceObjectParams(queryParams?: Params | null): void {
         for (const name in queryParams) {
             const value = queryParams[name];
-            if (typeof value != 'object' || value === null) {
+            if (typeof value !== 'object' || value === null) {
                 continue;
             }
 
