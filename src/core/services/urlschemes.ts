@@ -26,10 +26,10 @@ import { CoreConstants } from '../constants';
 import { CoreSSO } from '@singletons/sso';
 import { CoreNavigator, CoreRedirectPayload } from './navigator';
 import { CoreSiteCheckResponse, CoreSites } from './sites';
-import { CoreDomUtils } from './utils/dom';
 import { CoreErrorHelper, CoreErrorObject } from './error-helper';
 import { CoreUrl } from '@singletons/url';
-import { CoreLoadings } from './loadings';
+import { CoreLoadings } from './overlays/loadings';
+import { CoreAlerts } from './overlays/alerts';
 
 /*
  * Provider to handle custom URL schemes.
@@ -52,10 +52,10 @@ export class CoreCustomURLSchemesProvider {
      * @returns Error.
      */
     protected createInvalidSchemeError(url: string, data?: CoreCustomURLSchemesParams): CoreCustomURLSchemesHandleError {
-        const defaultError = new CoreError(Translate.instant('core.login.invalidsite'), {
+        const defaultError = new CoreError(Translate.instant('core.login.invalidsite'), { debug: {
             code: 'invalidurlscheme',
             details: `Error when treating a URL scheme, it seems the URL is not valid.<br><br>URL: ${url}`,
-        });
+        } });
 
         return new CoreCustomURLSchemesHandleError(defaultError, data);
     }
@@ -218,7 +218,7 @@ export class CoreCustomURLSchemesProvider {
                     const treated = await CoreContentLinksHelper.handleLink(data.redirect, username);
 
                     if (!treated) {
-                        CoreDomUtils.showErrorModal('core.contentlinks.errornoactions', true);
+                        CoreAlerts.showError(Translate.instant('core.contentlinks.errornoactions'));
                     }
                 }
 
@@ -399,11 +399,11 @@ export class CoreCustomURLSchemesProvider {
             // Error decoding the parameter.
             this.logger.error('Error decoding parameter received for login SSO');
 
-            throw new CoreCustomURLSchemesHandleError(new CoreError(Translate.instant('core.login.invalidsite'), {
+            throw new CoreCustomURLSchemesHandleError(new CoreError(Translate.instant('core.login.invalidsite'), { debug: {
                 code: 'errordecodingparameter',
                 details: `Error when trying to decode base 64 string.<br><br>URL: ${originalUrl}<br><br>Text to decode: ${url}` +
                     `<br><br>Error: ${CoreErrorHelper.getErrorMessageFromError(err)}`,
-            }));
+            } }));
         }
 
         const data: CoreCustomURLSchemesParams = await CoreLoginHelper.validateBrowserSSOLogin(url);
@@ -430,16 +430,15 @@ export class CoreCustomURLSchemesProvider {
 
         if (CoreSites.isLoggedIn()) {
             // Ask the user before changing site.
-            await CoreDomUtils.showConfirm(Translate.instant('core.contentlinks.confirmurlothersite'));
+            await CoreAlerts.confirm(Translate.instant('core.contentlinks.confirmurlothersite'));
 
-            const willReload = await CoreSites.logoutForRedirect(CoreConstants.NO_SITE_ID, {
+            await CoreSites.logout({
+                siteId: CoreConstants.NO_SITE_ID,
                 redirectPath: '/login/credentials',
                 redirectOptions: { params: pageParams },
             });
 
-            if (willReload) {
-                return;
-            }
+            return;
         }
 
         await CoreNavigator.navigateToLoginCredentials(pageParams);
@@ -521,8 +520,10 @@ export class CoreCustomURLSchemesProvider {
      * Treat error returned by handleCustomURL.
      *
      * @param error Error data.
+     * @param url The URL that caused the error.
+     * @param origin Origin of the treat handle error call.
      */
-    treatHandleCustomURLError(error: CoreCustomURLSchemesHandleError): void {
+    treatHandleCustomURLError(error: CoreCustomURLSchemesHandleError, url = '', origin = 'unknown'): void {
         if (error.error === 'Duplicated') {
             // Duplicated request
         } else if (CoreWSError.isWebServiceError(error.error) && error.data && error.data.isSSOToken) {
@@ -530,10 +531,10 @@ export class CoreCustomURLSchemesProvider {
             CoreLoginHelper.treatUserTokenError(error.data.siteUrl, <CoreWSError> error.error);
             CoreSites.logout();
         } else {
-            CoreDomUtils.showErrorModal(error.error ?? new CoreError(Translate.instant('core.login.invalidsite'), {
+            CoreAlerts.showError(error.error ?? new CoreError(Translate.instant('core.login.invalidsite'), { debug: {
                 code: 'unknownerror',
-                details: 'Unknown error when treating a URL scheme.',
-            }));
+                details: `Unknown error when treating a URL scheme.<br><br>Origin: ${origin}.<br><br>URL: ${url}.`,
+            } }));
         }
     }
 

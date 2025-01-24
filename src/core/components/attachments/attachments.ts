@@ -20,12 +20,14 @@ import { CoreSites } from '@services/sites';
 import { CoreText } from '@singletons/text';
 import { Translate } from '@singletons';
 import { CoreNetwork } from '@services/network';
-import { CoreDomUtils } from '@services/utils/dom';
 import { CoreFileUploaderHelper } from '@features/fileuploader/services/fileuploader-helper';
 import { CoreFileEntry } from '@services/file-helper';
 import { CoreCourses } from '@features/courses/services/courses';
 import { CorePromiseUtils } from '@singletons/promise-utils';
 import { toBoolean } from '@/core/transforms/boolean';
+import { CoreAlerts } from '@services/overlays/alerts';
+import { CoreToasts } from '@services/overlays/toasts';
+import { CoreWSFile } from '@services/ws';
 
 /**
  * Component to render attachments, allow adding more and delete the current ones.
@@ -133,7 +135,7 @@ export class CoreAttachmentsComponent implements OnInit {
      */
     async add(): Promise<void> {
         if (!this.allowOffline && !CoreNetwork.isOnline()) {
-            CoreDomUtils.showErrorModal('core.fileuploader.errormustbeonlinetoupload', true);
+            CoreAlerts.showError(Translate.instant('core.fileuploader.errormustbeonlinetoupload'));
 
             return;
         }
@@ -145,7 +147,7 @@ export class CoreAttachmentsComponent implements OnInit {
 
             this.files?.push(result);
         } catch (error) {
-            CoreDomUtils.showErrorModalDefault(error, 'Error selecting file.');
+            CoreAlerts.showError(error, { default: 'Error selecting file.' });
         }
     }
 
@@ -159,10 +161,22 @@ export class CoreAttachmentsComponent implements OnInit {
 
         if (askConfirm) {
             try {
-                await CoreDomUtils.showDeleteConfirm('core.confirmdeletefile');
+                await CoreAlerts.confirmDelete(Translate.instant('core.confirmdeletefile'));
             } catch {
                 // User cancelled.
                 return;
+            }
+        }
+
+        // Status message for screen readers.
+        const file = this.files[index];
+        if (file) {
+            const filename = (file as CoreWSFile).filename ?? (file as FileEntry).name;
+            if (filename) {
+                CoreToasts.show({
+                    cssClass: 'sr-only',
+                    message: Translate.instant('core.filedeletedsuccessfully', { filename }),
+                });
             }
         }
 

@@ -19,7 +19,6 @@ import { timeout } from 'rxjs/operators';
 import { CoreApp, CoreStoreConfig } from '@services/app';
 import { CoreEvents } from '@singletons/events';
 import { CoreWS } from '@services/ws';
-import { CoreDomUtils } from '@services/utils/dom';
 import { CoreUrl, CoreUrlPartNames } from '@singletons/url';
 import { CoreConstants, MINIMUM_MOODLE_VERSION, MOODLE_RELEASES } from '@/core/constants';
 import {
@@ -70,6 +69,7 @@ import { CoreAppDB } from './app-db';
 import { CoreRedirects } from '@singletons/redirects';
 import { CorePromiseUtils } from '@singletons/promise-utils';
 import { CoreOpener } from '@singletons/opener';
+import { CoreAlerts } from './overlays/alerts';
 
 export const CORE_SITE_SCHEMAS = new InjectionToken<CoreSiteSchema[]>('CORE_SITE_SCHEMAS');
 export const CORE_SITE_CURRENT_SITE_ID_CONFIG = 'current_site_id';
@@ -141,14 +141,6 @@ export class CoreSitesProvider {
 
             // Remove version classes from body.
             CoreHTMLClasses.removeSiteClasses();
-
-            // Go to sites page when user is logged out.
-            await CoreNavigator.navigate('/login/sites', { reset: true });
-
-            if (CoreSitePlugins.hasSitePluginsLoaded) {
-                // Temporary fix. Reload the page to unload all plugins.
-                window.location.reload();
-            }
         });
 
         CoreEvents.on(CoreEvents.LOGIN, async (data) => {
@@ -294,10 +286,10 @@ export class CoreSitesProvider {
         siteUrl = CoreUrl.formatURL(siteUrl);
 
         if (!CoreUrl.isHttpURL(siteUrl)) {
-            throw new CoreError(Translate.instant('core.login.invalidsite'), {
+            throw new CoreError(Translate.instant('core.login.invalidsite'), { debug: {
                 code: 'invalidprotocol',
                 details: `URL contains an invalid protocol when checking site.<br><br>Origin: ${origin}.<br><br>URL: ${siteUrl}.`,
-            });
+            } });
         }
 
         if (!CoreNetwork.isOnline()) {
@@ -815,7 +807,9 @@ export class CoreSitesProvider {
      * @returns Either VALID_VERSION, WORKPLACE_APP or MOODLE_APP.
      */
     protected validateWorkplaceVersion(info: CoreSiteInfoResponse): number {
-        const isWorkplace = !!info.functions && info.functions.some((func) => func.name == 'tool_program_get_user_programs');
+        const isWorkplace = !!info.functions && info.functions.some((func) =>
+            func.name === 'tool_program_get_user_programs' ||
+            func.name === 'tool_catalogue_get_user_catalogue');
 
         const isWPEnabled = this.isWorkplaceEnabled();
 
@@ -945,26 +939,28 @@ export class CoreSitesProvider {
 
             if (downloadUrl != null) {
                 // Do not block interface.
-                promise = CoreDomUtils.showConfirm(
+                promise = CoreAlerts.confirm(
                     Translate.instant('core.updaterequireddesc', { $a: config.tool_mobile_minimumversion }),
-                    Translate.instant('core.updaterequired'),
-                    Translate.instant('core.download'),
-                    Translate.instant(siteId ? 'core.mainmenu.logout' : 'core.cancel'),
+                    {
+                        header: Translate.instant('core.updaterequired'),
+                        okText: Translate.instant('core.download'),
+                        cancelText: Translate.instant(siteId ? 'core.mainmenu.logout' : 'core.cancel'),
+                    },
                 ).then(() => CoreOpener.openInBrowser(downloadUrl, { showBrowserWarning: false })).catch(() => {
                     // Do nothing.
                 });
             } else {
                 // Do not block interface.
-                promise = CoreDomUtils.showAlert(
-                    Translate.instant('core.updaterequired'),
-                    Translate.instant('core.updaterequireddesc', { $a: config.tool_mobile_minimumversion }),
-                ).then((alert) => alert.onWillDismiss());
+                promise = CoreAlerts.show({
+                    header: Translate.instant('core.updaterequired'),
+                    message: Translate.instant('core.updaterequireddesc', { $a: config.tool_mobile_minimumversion }),
+                }).then((alert) => alert.onWillDismiss());
             }
 
             promise.finally(() => {
                 if (siteId) {
                     // Logout the currentSite and expire the token.
-                    this.logout();
+                    this.internalLogout();
                     this.setSiteLoggedOut(siteId);
                 }
             });
@@ -1123,7 +1119,7 @@ export class CoreSitesProvider {
         this.logger.debug(`Delete site ${siteId}`);
 
         if (this.currentSite !== undefined && this.currentSite.id == siteId) {
-            this.logout();
+            this.internalLogout();
         }
 
         const site = await this.getSite(siteId);
@@ -1457,10 +1453,23 @@ export class CoreSitesProvider {
     /**
      * Logout the user.
      *
-     * @param options Logout options.
-     * @returns Promise resolved when the user is logged out.
+     * @param options Options.
      */
     async logout(options: CoreSitesLogoutOptions = {}): Promise<void> {
+        await CoreNavigator.navigate('/logout', {
+            params: { ...options },
+            reset: true,
+        });
+    }
+
+    /**
+     * Logout the user.
+     * This function is for internal usage, please use CoreSites.logout instead. The reason this function is public is because
+     * it's called from the CoreLoginLogoutPage page.
+     *
+     * @param options Logout options.
+     */
+    async internalLogout(options: InternalLogoutOptions = {}): Promise<void> {
         if (!this.currentSite) {
             return;
         }
@@ -1494,6 +1503,7 @@ export class CoreSitesProvider {
      * @param siteId Site that will be opened after logout.
      * @param redirectData Page/url to open after logout.
      * @returns Promise resolved with boolean: true if app will be reloaded after logout.
+     * @deprecated since 5.0. Use CoreSites.logout instead, it automatically handles redirects.
      */
     async logoutForRedirect(siteId: string, redirectData: CoreRedirectPayload): Promise<boolean> {
         if (!this.currentSite) {
@@ -1505,7 +1515,7 @@ export class CoreSitesProvider {
             CoreRedirects.storeRedirect(siteId, redirectData);
         }
 
-        await this.logout();
+        await this.internalLogout();
 
         return CoreSitePlugins.hasSitePluginsLoaded;
     }
@@ -1603,7 +1613,6 @@ export class CoreSitesProvider {
      * @param siteId Site Id.
      * @param token User's new token.
      * @param privateToken User's private token.
-     * @returns A promise resolved when the site is updated.
      */
     async updateSiteTokenBySiteId(siteId: string, token: string, privateToken: string = ''): Promise<void> {
         const site = await this.getSite(siteId);
@@ -1623,6 +1632,23 @@ export class CoreSitesProvider {
         promises.push(this.storeTokensInSecureStorage(siteId, token, privateToken));
 
         await Promise.all(promises);
+    }
+
+    /**
+     * Removes the OAuth ID for a given site.
+     *
+     * @param siteId The ID of the site to update.
+     */
+    async removeSiteOauthId(siteId: string): Promise<void> {
+        const site = await this.getSite(siteId);
+
+        site.setOAuthId(undefined);
+
+        const newData: Partial<SiteDBEntry> = {
+            oauthId: null,
+        };
+
+        await this.sitesTable.update(newData, { id: siteId });
     }
 
     /**
@@ -2480,7 +2506,14 @@ export type CoreSitesLoginTokenResponse = {
 /**
  * Options for logout.
  */
-export type CoreSitesLogoutOptions = {
+export type CoreSitesLogoutOptions = CoreRedirectPayload & InternalLogoutOptions & {
+    siteId?: string; // Site ID to load after logout.
+};
+
+/**
+ * Options for internal logout.
+ */
+type InternalLogoutOptions = {
     forceLogout?: boolean; // If true, site will be marked as logged out, no matter the value tool_mobile_forcelogout.
     removeAccount?: boolean; // If true, site will be removed too after logout.
 };

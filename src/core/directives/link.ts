@@ -17,7 +17,6 @@ import { SafeUrl } from '@angular/platform-browser';
 
 import { CoreFileHelper } from '@services/file-helper';
 import { CoreSites } from '@services/sites';
-import { CoreDomUtils } from '@services/utils/dom';
 import { CoreUrl } from '@singletons/url';
 import { CoreOpener } from '@singletons/opener';
 import { CoreConstants } from '@/core/constants';
@@ -27,7 +26,8 @@ import { DomSanitizer } from '@singletons';
 import { CoreFilepool } from '@services/filepool';
 import { CoreDom } from '@singletons/dom';
 import { toBoolean } from '../transforms/boolean';
-import { CoreLoadings } from '@services/loadings';
+import { CoreLoadings } from '@services/overlays/loadings';
+import { CoreAlerts } from '@services/overlays/alerts';
 
 /**
  * Directive to open a link in external browser or in the app.
@@ -39,7 +39,11 @@ export class CoreLinkDirective implements OnInit {
 
     @Input() href?: string | SafeUrl; // Link URL.
     @Input({ transform: toBoolean }) capture = false; // If the link needs to be captured by the app.
-    @Input({ transform: toBoolean }) inApp = false; // True to open in embedded browser, false to open in system browser.
+    /**
+     * True to force open in embedded browser, false to force open in system browser, undefined to determine it based on
+     * forceOpenLinksIn setting and data-open-in attribute.
+     */
+    @Input({ transform: toBoolean }) inApp?: boolean;
     @Input({ transform: toBoolean }) autoLogin = true; // Whether to try to use auto-login.
     @Input({ transform: toBoolean }) showBrowserWarning = true; // Whether to show a warning before opening browser.
 
@@ -136,7 +140,7 @@ export class CoreLinkDirective implements OnInit {
             try {
                 await CoreCustomURLSchemes.handleCustomURL(href);
             } catch (error) {
-                CoreCustomURLSchemes.treatHandleCustomURLError(error);
+                CoreCustomURLSchemes.treatHandleCustomURLError(error, href, 'CoreLinkDirective');
             }
 
             return;
@@ -165,7 +169,7 @@ export class CoreLinkDirective implements OnInit {
         try {
             await CoreOpener.openFile(path);
         } catch (error) {
-            CoreDomUtils.showErrorModal(error);
+            CoreAlerts.showError(error);
         }
     }
 

@@ -49,7 +49,6 @@ export class CoreWindow {
      *
      * @param url URL to open.
      * @param name Name of the browsing context into which to load the URL.
-     * @returns Promise resolved when done.
      */
     static async open(url: string, name?: string): Promise<void> {
         if (CoreUrl.isLocalFileUrl(url)) {
@@ -68,7 +67,7 @@ export class CoreWindow {
         } else {
             let treated = false;
 
-            if (name != '_system') {
+            if (name !== '_system') {
                 // Check if it can be opened in the app.
                 treated = await CoreContentLinksHelper.handleLink(url, undefined, true, true);
             }

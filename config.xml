@@ -30,9 +30,10 @@
     <preference name="prerendered-icon" value="true" />
     <preference name="AppendUserAgent" value="EdueyeMobile MoodleMobile 5.0.0 (50000)" />
     <preference name="BackupWebStorage" value="none" />
-    <preference name="ScrollEnabled" value="false" />
+    <preference name="ScrollEnabled" value="true" />
     <preference name="KeyboardDisplayRequiresUserAction" value="false" />
     <preference name="HideKeyboardFormAccessoryBar" value="false" />
+    <preference name="KeyboardResizeMode" value="ionic" />
     <preference name="AllowInlineMediaPlayback" value="true" />
     <preference name="LoadUrlTimeoutValue" value="60000" />
     <preference name="load-url-timeout" value="60000" />
@@ -77,6 +78,9 @@
         <config-file parent="/*" target="AndroidManifest.xml">
             <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
             <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+        </config-file>
+        <config-file parent="/resources/style" target="app/src/main/res/values/themes.xml">
+            <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
         </config-file>
     </platform>
     <platform name="ios">

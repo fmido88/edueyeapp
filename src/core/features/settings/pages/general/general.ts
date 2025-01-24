@@ -17,7 +17,6 @@ import { CoreConstants } from '@/core/constants';
 import { CoreConfig } from '@services/config';
 import { CoreEvents } from '@singletons/events';
 import { CoreLang } from '@services/lang';
-import { CoreDomUtils } from '@services/utils/dom';
 import { CoreSettingsHelper, CoreColorScheme, CoreZoomLevel } from '../../services/settings-helper';
 import { CoreIframeUtils } from '@services/utils/iframe';
 import { Translate } from '@singletons';
@@ -28,6 +27,7 @@ import { CoreNavigator } from '@services/navigator';
 import { CorePlatform } from '@services/platform';
 import { CoreAnalytics } from '@services/analytics';
 import { CoreNative } from '@features/native/services/native';
+import { CoreAlerts } from '@services/overlays/alerts';
 
 /**
  * Page that displays the general settings.
@@ -43,6 +43,7 @@ export class CoreSettingsGeneralPage {
     selectedLanguage = '';
     zoomLevels: { value: CoreZoomLevel; style: number; selected: boolean }[] = [];
     selectedZoomLevel = CoreZoomLevel.NONE;
+    pinchToZoom = false;
     richTextEditor = true;
     debugDisplay = false;
     analyticsAvailable = false;
@@ -97,6 +98,8 @@ export class CoreSettingsGeneralPage {
                 style: Math.round(CoreConstants.CONFIG.zoomlevels[value] * 16 / 100),
                 selected: value === this.selectedZoomLevel,
             }));
+
+        this.pinchToZoom = await CoreSettingsHelper.getPinchToZoom();
 
         this.richTextEditor = await CoreConfig.get(CoreConstants.SETTINGS_RICH_TEXT_EDITOR, true);
 
@@ -153,7 +156,7 @@ export class CoreSettingsGeneralPage {
                 },
             ];
 
-            const alert = await CoreDomUtils.showAlertWithOptions(
+            const alert = await CoreAlerts.show(
                 {
                     message: Translate.instant('core.settings.changelanguagealert'),
                     buttons,
@@ -207,6 +210,19 @@ export class CoreSettingsGeneralPage {
     }
 
     /**
+     * Called when pinch-to-zoom is enabled or disabled.
+     *
+     * @param ev Event
+     */
+    pinchToZoomChanged(ev: Event): void {
+        ev.stopPropagation();
+        ev.preventDefault();
+
+        CoreSettingsHelper.applyPinchToZoom(this.pinchToZoom);
+        CoreConfig.set(CoreConstants.SETTINGS_PINCH_TO_ZOOM, this.pinchToZoom ? 1 : 0);
+    }
+
+    /**
      * Called when a new color scheme is selected.
      *
      * @param ev Event
@@ -241,7 +257,7 @@ export class CoreSettingsGeneralPage {
         ev.preventDefault();
 
         CoreConfig.set(CoreConstants.SETTINGS_DEBUG_DISPLAY, this.debugDisplay ? 1 : 0);
-        CoreDomUtils.setDebugDisplay(this.debugDisplay);
+        CoreAlerts.setDebugDisplay(this.debugDisplay);
     }
 
     /**

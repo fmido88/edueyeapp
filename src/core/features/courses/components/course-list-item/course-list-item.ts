@@ -13,13 +13,12 @@
 // limitations under the License.
 
 import { DownloadStatus } from '@/core/constants';
-import { Component, ElementRef, Input, OnChanges, OnDestroy, OnInit } from '@angular/core';
+import { Component, ElementRef, HostBinding, Input, OnChanges, OnDestroy, OnInit } from '@angular/core';
 import { CoreCourse } from '@features/course/services/course';
 import { CoreCourseHelper, CorePrefetchStatusInfo } from '@features/course/services/course-helper';
 import { CoreUser } from '@features/user/services/user';
 import { CoreNavigator } from '@services/navigator';
 import { CoreSites } from '@services/sites';
-import { CoreDomUtils } from '@services/utils/dom';
 import { Translate } from '@singletons';
 import { CoreColors } from '@singletons/colors';
 import { CoreEventCourseStatusChanged, CoreEventObserver, CoreEvents } from '@singletons/events';
@@ -28,8 +27,8 @@ import { CoreCoursesHelper, CoreEnrolledCourseDataWithExtraInfoAndOptions } from
 import { CoreEnrolHelper } from '@features/enrol/services/enrol-helper';
 import { CoreDownloadStatusTranslatable } from '@components/download-refresh/download-refresh';
 import { toBoolean } from '@/core/transforms/boolean';
-import { CorePopovers } from '@services/popovers';
-import { CoreLoadings } from '@services/loadings';
+import { CorePopovers } from '@services/overlays/popovers';
+import { CoreLoadings } from '@services/overlays/loadings';
 import {
     CORE_COURSES_MY_COURSES_UPDATED_EVENT,
     CoreCoursesMyCoursesUpdatedEventAction,
@@ -37,13 +36,15 @@ import {
     CORE_COURSES_STATE_FAVOURITE,
 } from '@features/courses/constants';
 import { CORE_COURSE_ALL_COURSES_CLEARED, CORE_COURSE_PROGRESS_UPDATED_EVENT } from '@features/course/constants';
+import { CoreAlerts } from '@services/overlays/alerts';
+import { CoreErrorHelper } from '@services/error-helper';
 
 /**
  * This directive is meant to display an item for a list of courses.
  *
  * Example usage:
  *
- * <core-courses-course-list-item [course]="course"></core-courses-course-list-item>
+ * <core-courses-course-list-item [course]="course" />
  */
 @Component({
     selector: 'core-courses-course-list-item',
@@ -82,6 +83,10 @@ export class CoreCoursesCourseListItemComponent implements OnInit, OnDestroy, On
 
     protected element: HTMLElement;
     protected progressObserver: CoreEventObserver;
+
+    @HostBinding('attr.data-course-id') protected get courseId(): number {
+        return this.course.id;
+    }
 
     constructor(element: ElementRef) {
         this.element = element.nativeElement;
@@ -221,7 +226,7 @@ export class CoreCoursesCourseListItemComponent implements OnInit, OnDestroy, On
                 // There is a download promise. If it fails, show an error.
                 promise.catch((error) => {
                     if (!this.isDestroyed) {
-                        CoreDomUtils.showErrorModalDefault(error, 'core.course.errordownloadingcourse', true);
+                        CoreAlerts.showError(error, { default: Translate.instant('core.course.errordownloadingcourse') });
                     }
                 });
             } else {
@@ -261,7 +266,7 @@ export class CoreCoursesCourseListItemComponent implements OnInit, OnDestroy, On
             await CoreCourseHelper.confirmAndPrefetchCourse(this.prefetchCourseData, this.course);
         } catch (error) {
             if (!this.isDestroyed) {
-                CoreDomUtils.showErrorModalDefault(error, 'core.course.errordownloadingcourse', true);
+                CoreAlerts.showError(error, { default: Translate.instant('core.course.errordownloadingcourse') });
             }
         }
     }
@@ -271,12 +276,11 @@ export class CoreCoursesCourseListItemComponent implements OnInit, OnDestroy, On
      */
     async deleteCourseStoredData(): Promise<void> {
         try {
-            await CoreDomUtils.showDeleteConfirm(
-                'addon.storagemanager.confirmdeletedatafrom',
-                { name: this.course.displayname || this.course.fullname },
-            );
+            await CoreAlerts.confirmDelete(Translate.instant('addon.storagemanager.confirmdeletedatafrom', {
+                name: this.course.displayname || this.course.fullname,
+            }));
         } catch (error) {
-            if (!CoreDomUtils.isCanceledError(error)) {
+            if (!CoreErrorHelper.isCanceledError(error)) {
                 throw error;
             }
 
@@ -288,7 +292,7 @@ export class CoreCoursesCourseListItemComponent implements OnInit, OnDestroy, On
         try {
             await CoreCourseHelper.deleteCourseFiles(this.course.id);
         } catch (error) {
-            CoreDomUtils.showErrorModalDefault(error, Translate.instant('core.errordeletefile'));
+            CoreAlerts.showError(error, { default: Translate.instant('core.errordeletefile') });
         } finally {
             modal.dismiss();
         }
@@ -373,7 +377,7 @@ export class CoreCoursesCourseListItemComponent implements OnInit, OnDestroy, On
 
         } catch (error) {
             if (!this.isDestroyed) {
-                CoreDomUtils.showErrorModalDefault(error, 'Error changing course visibility.');
+                CoreAlerts.showError(error, { default: 'Error changing course visibility.' });
             }
         } finally {
             this.showSpinner = false;
@@ -402,7 +406,7 @@ export class CoreCoursesCourseListItemComponent implements OnInit, OnDestroy, On
 
         } catch (error) {
             if (!this.isDestroyed) {
-                CoreDomUtils.showErrorModalDefault(error, 'Error changing course favourite attribute.');
+                CoreAlerts.showError(error, { default: 'Error changing course favourite attribute.' });
             }
         } finally {
             this.showSpinner = false;

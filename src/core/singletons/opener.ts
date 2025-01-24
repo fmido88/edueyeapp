@@ -27,9 +27,9 @@ import { CorePromiseUtils } from './promise-utils';
 import { CoreUrl } from './url';
 import { CoreLogger } from './logger';
 import { CoreConfig } from '@services/config';
-import { CoreDomUtils } from '@services/utils/dom';
 import { CoreEvents } from '@singletons/events';
 import { CoreColors } from './colors';
+import { CorePrompts } from '@services/overlays/prompts';
 
 /**
  * Singleton with helper functions to handler open files and urls.
@@ -65,12 +65,9 @@ export class CoreOpener {
             .replace(/token=[^&#]+/gi, 'token=secret')
             .replace(/tokenpluginfile\.php\/[^/]+/gi, 'tokenpluginfile.php/secret');
 
-        const dontShowAgain = await CoreDomUtils.showPrompt(
-            Translate.instant('core.warnopeninbrowser', { url }),
-            undefined,
-            Translate.instant('core.dontshowagain'),
-            'checkbox',
-        );
+        const dontShowAgain = await CorePrompts.show(Translate.instant('core.warnopeninbrowser', { url }), 'checkbox', {
+            placeholderOrLabel: Translate.instant('core.dontshowagain'),
+        });
 
         if (dontShowAgain) {
             CoreConfig.set(CoreConstants.SETTINGS_DONT_SHOW_EXTERNAL_LINK_WARN, 1);
@@ -82,7 +79,6 @@ export class CoreOpener {
      *
      * @param path The local path of the file to be open.
      * @param options Options.
-     * @returns Promise resolved when done.
      */
     static async openFile(path: string, options: CoreOpenerOpenFileOptions = {}): Promise<void> {
         // Convert the path to a native path if needed.
@@ -194,14 +190,14 @@ export class CoreOpener {
             }
         }
 
-        const site = CoreSites.getCurrentSite();
+        if (CoreSites.getCurrentSite()?.containsUrl(url)) {
+            url = CoreUrl.addParamsToUrl(url, { lang: await CoreLang.getCurrentLanguage(CoreLangFormat.LMS) }, {
+                checkAutoLoginUrl: options.originalUrl !== url,
+            });
+        }
+
         CoreAnalytics.logEvent({ type: CoreAnalyticsEventType.OPEN_LINK, link: originaUrl });
-        window.open(
-            site?.containsUrl(url)
-                ? CoreUrl.addParamsToUrl(url, { lang: await CoreLang.getCurrentLanguage(CoreLangFormat.LMS) })
-                : url,
-            '_system',
-        );
+        window.open(url, '_system');
     }
 
     /**
@@ -312,6 +308,12 @@ export class CoreOpener {
         }
 
         CoreOpener.setInAppBrowserToolbarColors(options);
+
+        if (CoreSites.getCurrentSite()?.containsUrl(url)) {
+            url = CoreUrl.addParamsToUrl(url, { lang: CoreLang.getCurrentLanguageSync(CoreLangFormat.LMS) }, {
+                checkAutoLoginUrl: options.originalUrl !== url,
+            });
+        }
 
         CoreOpener.iabInstance = InAppBrowser.create(url, '_blank', options);
 

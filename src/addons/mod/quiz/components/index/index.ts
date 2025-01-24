@@ -21,7 +21,6 @@ import { CoreCourseContentsPage } from '@features/course/pages/contents/contents
 import { CoreQuestionBehaviourDelegate } from '@features/question/services/behaviour-delegate';
 import { IonContent } from '@ionic/angular';
 import { CoreNavigator } from '@services/navigator';
-import { CoreDomUtils } from '@services/utils/dom';
 import { CoreText } from '@singletons/text';
 import { CorePromiseUtils } from '@singletons/promise-utils';
 import { Translate } from '@singletons';
@@ -51,6 +50,7 @@ import {
     AddonModQuizAttemptStates,
 } from '../../constants';
 import { QuestionDisplayOptionsMarks } from '@features/question/constants';
+import { CoreAlerts } from '@services/overlays/alerts';
 
 /**
  * Component that displays a quiz entry page.
@@ -130,8 +130,6 @@ export class AddonModQuizIndexComponent extends CoreCourseModuleMainActivityComp
 
     /**
      * Attempt the quiz.
-     *
-     * @returns Promise resolved when done.
      */
     async attemptQuiz(): Promise<void> {
         if (this.showStatusSpinner || !this.quiz) {
@@ -141,7 +139,9 @@ export class AddonModQuizIndexComponent extends CoreCourseModuleMainActivityComp
 
         if (!AddonModQuiz.isQuizOffline(this.quiz)) {
             // Quiz isn't offline, just open it.
-            return this.openQuiz();
+            this.openQuiz();
+
+            return;
         }
 
         // Quiz supports offline, check if it needs to be downloaded.
@@ -150,7 +150,9 @@ export class AddonModQuizIndexComponent extends CoreCourseModuleMainActivityComp
 
         if (isDownloaded) {
             // Already downloaded, open it.
-            return this.openQuiz();
+            this.openQuiz();
+
+            return;
         }
 
         // Prefetch the quiz.
@@ -167,7 +169,7 @@ export class AddonModQuizIndexComponent extends CoreCourseModuleMainActivityComp
                 // If the site doesn't support check updates, continue too because we cannot tell if there's something new.
                 this.openQuiz();
             } else {
-                CoreDomUtils.showErrorModalDefault(error, 'core.errordownloading', true);
+                CoreAlerts.showError(error, { default: Translate.instant('core.errordownloading') });
             }
         } finally {
             this.showStatusSpinner = false;
@@ -192,7 +194,7 @@ export class AddonModQuizIndexComponent extends CoreCourseModuleMainActivityComp
 
         if (warnings?.length) {
             // Show warnings and delete them so they aren't shown again.
-            CoreDomUtils.showErrorModal(CoreText.buildMessage(warnings));
+            CoreAlerts.showError(CoreText.buildMessage(warnings));
 
             await AddonModQuizSync.setSyncWarnings(quiz.id, []);
         }
@@ -242,7 +244,6 @@ export class AddonModQuizIndexComponent extends CoreCourseModuleMainActivityComp
      * Get the user attempts in the quiz and the result info.
      *
      * @param quiz Quiz instance.
-     * @returns Promise resolved when done.
      */
     protected async getAttempts(
         quiz: AddonModQuizQuizData,
@@ -326,7 +327,6 @@ export class AddonModQuizIndexComponent extends CoreCourseModuleMainActivityComp
      * Get result info to show.
      *
      * @param quiz Quiz.
-     * @returns Promise resolved when done.
      */
     protected async getResultInfo(quiz: AddonModQuizQuizData): Promise<void> {
         if (!this.attempts.length || !quiz.showAttemptsGrades || !this.bestGrade?.hasgrade ||
@@ -382,8 +382,6 @@ export class AddonModQuizIndexComponent extends CoreCourseModuleMainActivityComp
 
     /**
      * Go to review an attempt that has just been finished.
-     *
-     * @returns Promise resolved when done.
      */
     protected async goToAutoReview(attempts: AddonModQuizAttemptWSData[]): Promise<void> {
         if (!this.autoReview) {
@@ -505,10 +503,10 @@ export class AddonModQuizIndexComponent extends CoreCourseModuleMainActivityComp
     /**
      * Open a quiz to attempt it.
      */
-    protected openQuiz(): void {
+    protected async openQuiz(): Promise<void> {
         this.hasPlayed = true;
 
-        CoreNavigator.navigateToSitePath(
+        await CoreNavigator.navigateToSitePath(
             `${ADDON_MOD_QUIZ_PAGE_NAME}/${this.courseId}/${this.module.id}/player`,
             {
                 params: {
@@ -554,7 +552,7 @@ export class AddonModQuizIndexComponent extends CoreCourseModuleMainActivityComp
      * @param quiz Quiz data.
      * @param accessInfo Quiz access information.
      * @param attempts The attempts to treat.
-     * @returns Promise resolved when done.
+     * @returns Formatted attempts.
      */
     protected async treatAttempts(
         quiz: AddonModQuizQuizData,
@@ -630,8 +628,6 @@ export class AddonModQuizIndexComponent extends CoreCourseModuleMainActivityComp
 
     /**
      * Get quiz grade data.
-     *
-     * @returns Promise resolved when done.
      */
     protected async getQuizGrade(): Promise<void> {
         try {
@@ -656,8 +652,6 @@ export class AddonModQuizIndexComponent extends CoreCourseModuleMainActivityComp
 
     /**
      * Go to page to review the attempt.
-     *
-     * @returns Promise resolved when done.
      */
     async reviewAttempt(attemptId: number): Promise<void> {
         await CoreNavigator.navigateToSitePath(

@@ -18,9 +18,10 @@ import {
     AddonMessagesConversationMember,
     AddonMessages,
 } from '../../services/messages';
-import { CoreDomUtils } from '@services/utils/dom';
 import { ActivatedRoute } from '@angular/router';
 import { ModalController } from '@singletons';
+import { CoreAlerts } from '@services/overlays/alerts';
+import { CoreSharedModule } from '@/core/shared.module';
 
 /**
  * Component that displays the list of conversations, including group conversations.
@@ -28,6 +29,10 @@ import { ModalController } from '@singletons';
 @Component({
     selector: 'page-addon-messages-conversation-info',
     templateUrl: 'conversation-info.html',
+    standalone: true,
+    imports: [
+        CoreSharedModule,
+    ],
 })
 export class AddonMessagesConversationInfoComponent implements OnInit {
 
@@ -45,7 +50,7 @@ export class AddonMessagesConversationInfoComponent implements OnInit {
     }
 
     /**
-     * Component loaded.
+     * @inheritdoc
      */
     ngOnInit(): void {
         this.fetchData().finally(() => {
@@ -67,7 +72,7 @@ export class AddonMessagesConversationInfoComponent implements OnInit {
             // Now get the members.
             await this.fetchMembers();
         } catch (error) {
-            CoreDomUtils.showErrorModalDefault(error, 'Error getting members.');
+            CoreAlerts.showError(error, { default: 'Error getting members.' });
         }
     }
 
@@ -102,7 +107,7 @@ export class AddonMessagesConversationInfoComponent implements OnInit {
         try {
             await this.fetchMembers(true);
         } catch (error) {
-            CoreDomUtils.showErrorModalDefault(error, 'Error getting members.');
+            CoreAlerts.showError(error, { default: 'Error getting members.' });
             this.loadMoreError = true;
         } finally {
             infiniteComplete && infiniteComplete();

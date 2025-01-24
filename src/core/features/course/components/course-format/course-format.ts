@@ -25,7 +25,6 @@ import {
     ChangeDetectorRef,
     ViewChild,
 } from '@angular/core';
-import { CoreDomUtils } from '@services/utils/dom';
 import { CoreDynamicComponent } from '@components/dynamic-component/dynamic-component';
 import { CoreCourseAnyCourseData } from '@features/courses/services/courses';
 import {
@@ -52,7 +51,7 @@ import { CoreDom } from '@singletons/dom';
 import { CoreUserTourDirectiveOptions } from '@directives/user-tour';
 import { CoreAnalytics, CoreAnalyticsEventType } from '@services/analytics';
 import { ContextLevel } from '@/core/constants';
-import { CoreModals } from '@services/modals';
+import { CoreModals } from '@services/overlays/modals';
 import { CoreSharedModule } from '@/core/shared.module';
 import { CoreBlockComponentsModule } from '@features/block/components/components.module';
 import { CoreSites } from '@services/sites';
@@ -66,6 +65,7 @@ import { toBoolean } from '@/core/transforms/boolean';
 import { CoreInfiniteLoadingComponent } from '@components/infinite-loading/infinite-loading';
 import { CoreSite } from '@classes/sites/site';
 import { CoreCourseSectionComponent, CoreCourseSectionToDisplay } from '../course-section/course-section';
+import { CoreAlerts } from '@services/overlays/alerts';
 
 /**
  * Component to display course contents using a certain format. If the format isn't found, use default one.
@@ -98,7 +98,7 @@ export class CoreCourseFormatComponent implements OnInit, OnChanges, OnDestroy {
     @Input() initialSectionNumber?: number; // The section to load first (by number).
     @Input() initialBlockInstanceId?: number; // The instance to focus.
     @Input() moduleId?: number; // The module ID to scroll to. Must be inside the initial selected section.
-    @Input({ transform: toBoolean }) isGuest = false; // If user is accessing using an ACCESS_GUEST enrolment method.
+    @Input({ transform: toBoolean }) isGuest?: boolean; // If user is accessing using an ACCESS_GUEST enrolment method.
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     @ViewChildren(CoreDynamicComponent) dynamicComponents?: QueryList<CoreDynamicComponent<any>>;
@@ -161,8 +161,7 @@ export class CoreCourseFormatComponent implements OnInit, OnChanges, OnDestroy {
      */
     ngOnInit(): void {
         if (this.course === undefined) {
-            CoreDomUtils.showErrorModal('Course not set');
-
+            CoreAlerts.showError('Course not set');
             CoreNavigator.back();
 
             return;
@@ -484,6 +483,7 @@ export class CoreCourseFormatComponent implements OnInit, OnChanges, OnDestroy {
             component: CoreCourseCourseIndexComponent,
             initialBreakpoint: 1,
             breakpoints: [0, 1],
+            handle: false,
             componentProps: {
                 course: this.course,
                 sections: this.sections,

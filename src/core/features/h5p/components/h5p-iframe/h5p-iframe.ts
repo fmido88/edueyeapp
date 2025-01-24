@@ -21,7 +21,6 @@ import { CoreFile } from '@services/file';
 import { CoreFilepool } from '@services/filepool';
 import { CoreFileHelper } from '@services/file-helper';
 import { CoreSites } from '@services/sites';
-import { CoreDomUtils } from '@services/utils/dom';
 import { CoreUrl } from '@singletons/url';
 import { CoreH5P } from '@features/h5p/services/h5p';
 import { DownloadStatus } from '@/core/constants';
@@ -31,6 +30,7 @@ import { CoreH5PCore, CoreH5PDisplayOptions } from '../../classes/core';
 import { CoreH5PHelper } from '../../classes/helper';
 import { CoreAnalytics, CoreAnalyticsEventType } from '@services/analytics';
 import { toBoolean } from '@/core/transforms/boolean';
+import { CoreAlerts } from '@services/overlays/alerts';
 
 /**
  * Component to render an iframe with an H5P package.
@@ -49,6 +49,9 @@ export class CoreH5PIframeComponent implements OnChanges, OnDestroy {
     @Input({ transform: toBoolean }) enableInAppFullscreen = false; // Whether to enable our custom in-app fullscreen feature.
     @Input() saveFreq?: number; // Save frequency (in seconds) if enabled.
     @Input() state?: string; // Initial content state.
+    @Input() component?: string; // Component the file is linked to.
+    @Input() componentId?: string | number; // Component ID.
+    @Input() fileTimemodified?: number; // The timemodified of the file.
     @Output() onIframeUrlSet = new EventEmitter<{src: string; online: boolean}>();
     @Output() onIframeLoaded = new EventEmitter<void>();
 
@@ -144,8 +147,7 @@ export class CoreH5PIframeComponent implements OnChanges, OnDestroy {
                 this.iframeSrc = CoreUrl.addParamsToUrl(src, { preventredirect: false });
             }
         } catch (error) {
-            CoreDomUtils.showErrorModalDefault(error, 'Error loading H5P package.', true);
-
+            CoreAlerts.showError(error, { default: 'Error loading H5P package.' });
         } finally {
             CoreH5PHelper.addResizerScript();
             this.onIframeUrlSet.emit({ src: this.iframeSrc!, online: !!localUrl });
@@ -181,7 +183,12 @@ export class CoreH5PIframeComponent implements OnChanges, OnDestroy {
 
                 const file = await CoreFile.getFile(path);
 
-                await CoreH5PHelper.saveH5P(this.fileUrl!, file, this.siteId);
+                await CoreH5PHelper.saveH5P(this.fileUrl!, file, {
+                    siteId: this.siteId,
+                    component: this.component,
+                    componentId: this.componentId,
+                    timemodified: this.fileTimemodified,
+                });
 
                 // File treated. Try to get the index file URL again.
                 const url = await CoreH5P.h5pPlayer.getContentIndexFileUrl(

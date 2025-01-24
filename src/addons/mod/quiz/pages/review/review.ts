@@ -17,7 +17,6 @@ import { CoreQuestionQuestionForView } from '@features/question/services/questio
 import { CoreQuestionHelper } from '@features/question/services/question-helper';
 import { IonContent } from '@ionic/angular';
 import { CoreNavigator } from '@services/navigator';
-import { CoreDomUtils } from '@services/utils/dom';
 import { CorePromiseUtils } from '@singletons/promise-utils';
 import { CoreDom } from '@singletons/dom';
 import { CoreTime } from '@singletons/time';
@@ -35,7 +34,9 @@ import {
 import { AddonModQuizHelper } from '../../services/quiz-helper';
 import { CoreAnalytics, CoreAnalyticsEventType } from '@services/analytics';
 import { ADDON_MOD_QUIZ_COMPONENT } from '../../constants';
-import { CoreModals } from '@services/modals';
+import { CoreModals } from '@services/overlays/modals';
+import { CoreAlerts } from '@services/overlays/alerts';
+import { Translate } from '@singletons';
 
 /**
  * Page that allows reviewing a quiz attempt.
@@ -92,8 +93,7 @@ export class AddonModQuizReviewPage implements OnInit {
             this.currentPage = CoreNavigator.getRouteNumberParam('page') || -1;
             this.showAll = this.currentPage == -1;
         } catch (error) {
-            CoreDomUtils.showErrorModal(error);
-
+            CoreAlerts.showError(error);
             CoreNavigator.back();
 
             return;
@@ -131,7 +131,7 @@ export class AddonModQuizReviewPage implements OnInit {
 
             this.performLogView(false, { page });
         } catch (error) {
-            CoreDomUtils.showErrorModalDefault(error, 'addon.mod_quiz.errorgetquestions', true);
+            CoreAlerts.showError(error, { default: Translate.instant('addon.mod_quiz.errorgetquestions') });
         } finally {
             this.loaded = true;
 
@@ -144,8 +144,6 @@ export class AddonModQuizReviewPage implements OnInit {
 
     /**
      * Convenience function to get the quiz data.
-     *
-     * @returns Promise resolved when done.
      */
     protected async fetchData(): Promise<void> {
         try {
@@ -163,7 +161,7 @@ export class AddonModQuizReviewPage implements OnInit {
 
             this.logView();
         } catch (error) {
-            CoreDomUtils.showErrorModalDefault(error, 'addon.mod_quiz.errorgetquiz', true);
+            CoreAlerts.showError(error, { default: Translate.instant('addon.mod_quiz.errorgetquiz') });
         }
     }
 
@@ -171,7 +169,6 @@ export class AddonModQuizReviewPage implements OnInit {
      * Load a page questions.
      *
      * @param page The page to load.
-     * @returns Promise resolved when done.
      */
     protected async loadPage(page: number): Promise<void> {
         if (!this.quiz) {
@@ -200,8 +197,6 @@ export class AddonModQuizReviewPage implements OnInit {
 
     /**
      * Load data to navigate the questions using the navigation modal.
-     *
-     * @returns Promise resolved when done.
      */
     protected async loadNavigation(): Promise<void> {
         // Get all questions in single page to retrieve all the questions.

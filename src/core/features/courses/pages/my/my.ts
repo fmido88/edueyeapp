@@ -22,7 +22,6 @@ import { CoreBlockDelegate } from '@features/block/services/block-delegate';
 import { CoreCourseBlock } from '@features/course/services/course';
 import { CoreCoursesDashboard, CoreCoursesDashboardProvider } from '@features/courses/services/dashboard';
 import { CoreSites } from '@services/sites';
-import { CoreDomUtils } from '@services/utils/dom';
 import { CorePromiseUtils } from '@singletons/promise-utils';
 import { CoreEventObserver, CoreEvents } from '@singletons/events';
 import { Subscription } from 'rxjs';
@@ -31,6 +30,7 @@ import { CoreTime } from '@singletons/time';
 import { CoreAnalytics, CoreAnalyticsEventType } from '@services/analytics';
 import { Translate } from '@singletons';
 import { CoreWait } from '@singletons/wait';
+import { CoreAlerts } from '@services/overlays/alerts';
 
 /**
  * Page that shows a my courses.
@@ -48,7 +48,6 @@ export class CoreCoursesMyPage implements OnInit, OnDestroy, AsyncDirective {
 
     @ViewChild(CoreBlockComponent) block!: CoreBlockComponent;
 
-    siteName = '';
     downloadCoursesEnabled = false;
     userId: number;
     loadedBlock?: Partial<CoreCourseBlock>;
@@ -66,8 +65,6 @@ export class CoreCoursesMyPage implements OnInit, OnDestroy, AsyncDirective {
         // Refresh the enabled flags if site is updated.
         this.updateSiteObserver = CoreEvents.on(CoreEvents.SITE_UPDATED, async () => {
             this.downloadCoursesEnabled = !CoreCourses.isDownloadCoursesDisabledInSite();
-            await this.loadSiteName();
-
         }, CoreSites.getCurrentSiteId());
 
         this.userId = CoreSites.getCurrentSiteUserId();
@@ -98,8 +95,6 @@ export class CoreCoursesMyPage implements OnInit, OnDestroy, AsyncDirective {
 
         CoreSites.loginNavigationFinished();
 
-        await this.loadSiteName();
-
         this.loadContent(true);
     }
 
@@ -125,7 +120,7 @@ export class CoreCoursesMyPage implements OnInit, OnDestroy, AsyncDirective {
                 );
 
                 // My overview block should always be in main blocks, but check side blocks too just in case.
-                this.loadedBlock = blocks.mainBlocks.concat(blocks.sideBlocks).find((block) => block.name == 'myoverview');
+                this.loadedBlock = blocks.mainBlocks.concat(blocks.sideBlocks).find((block) => block.name === 'myoverview');
                 this.hasSideBlocks = supportsMyParam && CoreBlockDelegate.hasSupportedBlock(blocks.sideBlocks);
 
                 await CoreWait.nextTicks(2);
@@ -138,7 +133,7 @@ export class CoreCoursesMyPage implements OnInit, OnDestroy, AsyncDirective {
                     this.loadFallbackBlock();
                 }
             } catch (error) {
-                CoreDomUtils.showErrorModal(error);
+                CoreAlerts.showError(error);
 
                 // Cannot get the blocks, just show the block if needed.
                 this.loadFallbackBlock();
@@ -154,14 +149,6 @@ export class CoreCoursesMyPage implements OnInit, OnDestroy, AsyncDirective {
         this.onReadyPromise.resolve();
 
         this.logView();
-    }
-
-    /**
-     * Load the site name.
-     */
-    protected async loadSiteName(): Promise<void> {
-        const site = CoreSites.getRequiredCurrentSite();
-        this.siteName = await site.getSiteName() || '';
     }
 
     /**

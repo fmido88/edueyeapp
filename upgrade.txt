@@ -2,6 +2,13 @@ This file describes API changes in the Moodle App that affect site plugins, info
 
 For more information about upgrading, read the official documentation: https://moodledev.io/general/app/upgrading/
 
+=== 5.0.0 ===
+
+ - The logout process has been refactored, now it uses a logout page to trigger Angular guards. CoreSites.logout now uses this process, and CoreSites.logoutForRedirect is deprecated and shouldn't be used anymore.
+ - The parameters of treatDownloadedFile of plugin file handlers have changed. Now the third parameter is an object with all the optional parameters.
+ - Some CoreColors functions have been refactored to handle alpha and to validate colors.
+ - The parameters of CoreUrl.addParamsToUrl have changed. Now the third parameter is an object with all the optional parameters.
+
 === 4.5.0 ===
 
  - Ionic has been upgraded to major version 8. See breaking changes and upgrade guide here: https://ionicframework.com/docs/updating/8-0

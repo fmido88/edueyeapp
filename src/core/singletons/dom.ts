@@ -580,7 +580,16 @@ export class CoreDom {
     ): void {
         const enabled = () => !CoreUtils.isTrueOrOne(element.dataset.disabledA11yClicks ?? 'false');
 
-        element.addEventListener('click', (event) => enabled() && callback(event));
+        element.addEventListener('click', (event) => {
+            if (!enabled()) {
+                return;
+            }
+
+            callback(event);
+
+            event.preventDefault();
+            event.stopPropagation();
+        });
 
         element.addEventListener('keydown', (event) => {
             if (!enabled()) {
@@ -737,6 +746,86 @@ export class CoreDom {
         regExp = /([^]*?)({[^]*?}|,)/g;
 
         return css.replace(regExp, prefix + ' $1 $2');
+    }
+
+    /**
+     * Formats a size to be used as width/height of an element.
+     * If the size is already valid (like '500px' or '50%') it won't be modified.
+     * Returned size will have a format like '500px'.
+     *
+     * @param size Size to format.
+     * @returns Formatted size. If size is not valid, returns an empty string.
+     */
+    static formatSizeUnits(size: string | number): string {
+        // Check for valid pixel units.
+        if (typeof size === 'string') {
+            size = size.replace(/ /g, ''); // Trim and remove all spaces.
+            if (CoreDom.hasValidSizeUnits(size) || size === 'auto' || size === 'initial' || size === 'inherit') {
+                // It seems to be a valid size.
+                return size;
+            }
+
+            // It's important to use parseInt instead of Number because Number('') is 0 instead of NaN.
+            size = parseInt(size, 10);
+        }
+
+        if (!isNaN(size)) {
+            return `${size}px`;
+        }
+
+        return '';
+    }
+
+    /**
+     * Check if a size has valid pixel units.
+     *
+     * @param size Size to check.
+     * @returns Whether the size has valid pixel units.
+     */
+    protected static hasValidSizeUnits(size: string): boolean {
+        const validUnits = ['px', '%', 'em', 'rem', 'cm', 'mm', 'in', 'pt', 'pc', 'ex', 'ch', 'vw', 'vh', 'vmin', 'vmax'];
+
+        const units = size.match('^[0-9]*\\.?[0-9]+(' + validUnits.join('|') + ')$');
+
+        return !!units && units.length > 1;
+    }
+
+    /**
+     * Search the ion-header of the page.
+     * This function is usually used to find the header of a page to add buttons.
+     *
+     * @returns The header element if found.
+     */
+    static async findIonHeaderFromElement(element: HTMLElement): Promise<HTMLElement | null> {
+        await CoreDom.waitToBeInDOM(element);
+        let parentPage: HTMLElement | null = element;
+
+        while (parentPage && parentPage.parentElement) {
+            const content = parentPage.closest<HTMLIonContentElement>('ion-content');
+            if (content) {
+                // Sometimes ion-page class is not yet added by the ViewController, wait for content to render.
+                await content.componentOnReady();
+            }
+
+            parentPage = parentPage.parentElement.closest('.ion-page, .ion-page-hidden, .ion-page-invisible');
+
+            // Check if the page has a header. If it doesn't, search the next parent page.
+            let header  = parentPage?.querySelector<HTMLIonHeaderElement>(':scope > ion-header');
+
+            if (header && getComputedStyle(header).display !== 'none') {
+                return header;
+            }
+
+            // Find using content if any.
+            header = content?.parentElement?.querySelector<HTMLIonHeaderElement>(':scope > ion-header');
+
+            if (header && getComputedStyle(header).display !== 'none') {
+                return header;
+            }
+        }
+
+        // Header not found, reject.
+        throw Error('Header not found.');
     }
 
 }

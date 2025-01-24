@@ -40,10 +40,11 @@ import {
 import { QuestionDisplayOptionsMarks } from '@features/question/constants';
 import { CoreGroups } from '@services/groups';
 import { CoreTimeUtils } from '@services/utils/time';
-import { CoreModals } from '@services/modals';
-import { CoreLoadings } from '@services/loadings';
+import { CoreModals } from '@services/overlays/modals';
+import { CoreLoadings } from '@services/overlays/loadings';
 import { convertTextToHTMLElement } from '@/core/utils/create-html-element';
 import { CorePromiseUtils } from '@singletons/promise-utils';
+import { CoreAlerts } from '@services/overlays/alerts';
 
 /**
  * Helper service that provides some features for quiz.
@@ -233,7 +234,7 @@ export class AddonModQuizHelperProvider {
             // Show error and ask for the preflight again.
             // Wait to show the error because we want it to be shown over the preflight modal.
             setTimeout(() => {
-                CoreDomUtils.showErrorModalDefault(error, 'core.error', true);
+                CoreAlerts.showError(error, { default: Translate.instant('core.error') });
             }, 100);
 
             return this.getAndCheckPreflightData(quiz, accessInfo, preflightData, {
@@ -333,7 +334,6 @@ export class AddonModQuizHelperProvider {
      * @param page Page to load, -1 to all questions in same page.
      * @param quizId Quiz ID.
      * @param siteId Site ID. If not defined, current site.
-     * @returns Promise resolved when done.
      */
     async handleReviewLink(attemptId: number, page?: number, quizId?: number, siteId?: string): Promise<void> {
         siteId = siteId || CoreSites.getCurrentSiteId();
@@ -362,7 +362,7 @@ export class AddonModQuizHelperProvider {
                 },
             );
         } catch (error) {
-            CoreDomUtils.showErrorModalDefault(error, 'An error occurred while loading the required data.');
+            CoreAlerts.showError(error, { default: 'An error occurred while loading the required data.' });
         } finally {
             modal.dismiss();
         }

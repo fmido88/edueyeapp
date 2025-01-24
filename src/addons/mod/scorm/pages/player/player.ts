@@ -14,11 +14,9 @@
 
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CoreNavigationBarItem } from '@components/navigation-bar/navigation-bar';
-import { CoreMainMenuPage } from '@features/mainmenu/pages/menu/menu';
 import { CoreNavigator } from '@services/navigator';
 import { CoreSites, CoreSitesReadingStrategy } from '@services/sites';
 import { CoreSync } from '@services/sync';
-import { CoreDomUtils } from '@services/utils/dom';
 import { CoreTimeUtils } from '@services/utils/time';
 import { CorePromiseUtils } from '@singletons/promise-utils';
 import { CoreEventObserver, CoreEvents } from '@singletons/events';
@@ -43,7 +41,9 @@ import {
     ADDON_MOD_SCORM_UPDATE_TOC_EVENT,
 } from '../../constants';
 import { CoreWait } from '@singletons/wait';
-import { CoreModals } from '@services/modals';
+import { CoreModals } from '@services/overlays/modals';
+import { CoreAlerts } from '@services/overlays/alerts';
+import { Translate } from '@singletons';
 
 /**
  * Page that allows playing a SCORM.
@@ -89,10 +89,6 @@ export class AddonModScormPlayerPage implements OnInit, OnDestroy {
     protected launchPrevObserver?: CoreEventObserver;
     protected goOfflineObserver?: CoreEventObserver;
 
-    constructor(
-        protected mainMenuPage: CoreMainMenuPage,
-    ) {}
-
     /**
      * @inheritdoc
      */
@@ -107,8 +103,7 @@ export class AddonModScormPlayerPage implements OnInit, OnDestroy {
             this.initialScoId = CoreNavigator.getRouteNumberParam('scoId');
             this.siteId = CoreSites.getRequiredCurrentSite().getId();
         } catch (error) {
-            CoreDomUtils.showErrorModal(error);
-
+            CoreAlerts.showError(error);
             CoreNavigator.back();
 
             return;
@@ -129,7 +124,7 @@ export class AddonModScormPlayerPage implements OnInit, OnDestroy {
                 try {
                     await this.setStartTime(this.currentSco.id);
                 } catch (error) {
-                    CoreDomUtils.showErrorModalDefault(error, 'addon.mod_scorm.errorgetscorm', true);
+                    CoreAlerts.showError(error, { default: Translate.instant('addon.mod_scorm.errorgetscorm') });
                 }
             }
 
@@ -219,7 +214,7 @@ export class AddonModScormPlayerPage implements OnInit, OnDestroy {
                 try {
                     AddonModScormHelper.convertAttemptToOffline(this.scorm, this.attempt);
                 } catch (error) {
-                    CoreDomUtils.showErrorModalDefault(error, 'core.error', true);
+                    CoreAlerts.showError(error, { default: Translate.instant('core.error') });
                 }
 
                 this.refreshToc();
@@ -311,8 +306,6 @@ export class AddonModScormPlayerPage implements OnInit, OnDestroy {
 
     /**
      * Fetch data needed to play the SCORM.
-     *
-     * @returns Promise resolved when done.
      */
     protected async fetchData(): Promise<void> {
         if (!this.scorm) {
@@ -345,7 +338,7 @@ export class AddonModScormPlayerPage implements OnInit, OnDestroy {
 
             this.userData = data;
         } catch (error) {
-            CoreDomUtils.showErrorModalDefault(error, 'addon.mod_scorm.errorgetscorm', true);
+            CoreAlerts.showError(error, { default: Translate.instant('addon.mod_scorm.errorgetscorm') });
         }
     }
 
@@ -501,7 +494,7 @@ export class AddonModScormPlayerPage implements OnInit, OnDestroy {
 
                 await AddonModScorm.saveTracks(sco.id, this.attempt, tracks, this.scorm, true);
             } catch (error) {
-                CoreDomUtils.showErrorModalDefault(error, 'core.error', true);
+                CoreAlerts.showError(error, { default: Translate.instant('core.error') });
             }
         } finally {
             // Refresh TOC, some prerequisites might have changed.
@@ -544,7 +537,7 @@ export class AddonModScormPlayerPage implements OnInit, OnDestroy {
 
             await this.fetchToc();
         } catch (error) {
-            CoreDomUtils.showErrorModalDefault(error, 'addon.mod_scorm.errorgetscorm', true);
+            CoreAlerts.showError(error, { default: Translate.instant('addon.mod_scorm.errorgetscorm') });
         }
     }
 

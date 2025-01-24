@@ -12,26 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { NgModule } from '@angular/core';
-import { RouterModule, Routes } from '@angular/router';
+import { CoreError } from '@classes/errors/error';
+import { CoreH5PMissingLibrary } from '../core';
 
-import { CoreSharedModule } from '@/core/shared.module';
-import { AddonMessagesSettingsPage } from '@addons/messages/pages/settings/settings';
+/**
+ * Missing dependencies error when deploying an H5P package.
+ */
+export class CoreH5PMissingDependenciesError extends CoreError {
 
-const routes: Routes = [
-    {
-        path: '',
-        component: AddonMessagesSettingsPage,
-    },
-];
+    missingDependencies: CoreH5PMissingLibrary[];
 
-@NgModule({
-    imports: [
-        RouterModule.forChild(routes),
-        CoreSharedModule,
-    ],
-    declarations: [
-        AddonMessagesSettingsPage,
-    ],
-})
-export default class AddonMessagesSettingsLazyModule {}
+    constructor(message: string, missingDependencies: CoreH5PMissingLibrary[]) {
+        super(message);
+
+        this.missingDependencies = missingDependencies;
+    }
+
+}

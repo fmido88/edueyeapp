@@ -1,4 +1,4 @@
-@core_login @app @javascript
+@core_login @app @core @javascript
 Feature: Test basic usage of login in app
   I need basic login functionality to work
 
@@ -65,13 +65,6 @@ Feature: Test basic usage of login in app
     And I set the field "Your site" to "wrongsiteaddress" in the app
     And I press "Connect to your site" in the app
     Then I should find "Can't connect to site" in the app
-
-  Scenario: Log out from the app
-    Given I entered the app as "student1"
-    And I press the user menu button in the app
-    When I press "Log out" in the app
-    And I wait the app to restart
-    Then the header should be "Accounts" in the app
 
   Scenario: Delete an account
     Given I entered the app as "student1"

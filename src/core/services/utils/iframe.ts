@@ -18,7 +18,6 @@ import { WKWebViewCookiesWindow } from 'cordova-plugin-wkwebview-cookies';
 
 import { CoreNetwork } from '@services/network';
 import { CoreFile } from '@services/file';
-import { CoreFileHelper } from '@services/file-helper';
 import { CoreSites } from '@services/sites';
 import { CoreDomUtils } from '@services/utils/dom';
 import { CoreUrl } from '@singletons/url';
@@ -36,9 +35,10 @@ import { CoreMimetypeUtils } from './mimetype';
 import { CoreFilepool } from '@services/filepool';
 import { CoreSite } from '@classes/sites/site';
 import { CoreNative } from '@features/native/services/native';
-import { CoreLoadings } from '@services/loadings';
+import { CoreLoadings } from '@services/overlays/loadings';
 import { CorePromiseUtils } from '@singletons/promise-utils';
 import { CoreFileUtils } from '@singletons/file-utils';
+import { CoreAlerts } from '@services/overlays/alerts';
 
 type CoreFrameElement = FrameElement & {
     window?: Window;
@@ -313,7 +313,13 @@ export class CoreIframeUtilsProvider {
     ): void {
         if (contentWindow) {
             // Intercept window.open.
+            const originalWindowOpen = contentWindow.open;
             contentWindow.open = (url: string, name: string) => {
+                if (name === '_self') {
+                    // Link will be opened in the same frame, no need to treat it.
+                    return originalWindowOpen(url, name);
+                }
+
                 this.windowOpen(url, name, element);
 
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -410,7 +416,7 @@ export class CoreIframeUtilsProvider {
 
             // Add click listener to the link, this way if the iframe has added a listener to the link it will be executed first.
             link.treated = true;
-            link.addEventListener('click', event => this.linkClicked(link, element, event));
+            link.addEventListener('click', event => this.linkClicked(link, event));
         }, {
             capture: true, // Use capture to fix this listener not called if the element clicked is too deep in the DOM.
         });
@@ -447,26 +453,11 @@ export class CoreIframeUtilsProvider {
             }
         }
 
-        if (name == '_self') {
-            // Link should be loaded in the same frame.
-            if (!element) {
-                this.logger.warn('Cannot load URL in iframe because the element was not supplied', url);
-
-                return;
-            }
-
-            if (element.tagName.toLowerCase() === 'object') {
-                element.setAttribute('data', url);
-            } else {
-                element.setAttribute('src', url);
-            }
-        } else {
-            try {
-                // It's an external link or a local file, check if it can be opened in the app.
-                await CoreWindow.open(url, name);
-            } catch (error) {
-                CoreDomUtils.showErrorModal(error);
-            }
+        try {
+            // It's an external link or a local file, check if it can be opened in the app.
+            await CoreWindow.open(url, name);
+        } catch (error) {
+            CoreAlerts.showError(error);
         }
     }
 
@@ -474,13 +465,11 @@ export class CoreIframeUtilsProvider {
      * A link inside a frame was clicked.
      *
      * @param link Link clicked, or data of the link clicked.
-     * @param element Frame element.
      * @param event Click event.
      * @returns Promise resolved when done.
      */
     protected async linkClicked(
         link: CoreIframeHTMLAnchorElement | {href: string; target?: string; originalHref?: string},
-        element?: CoreFrameElement,
         event?: Event,
     ): Promise<void> {
         if (event && event.defaultPrevented) {
@@ -488,69 +477,24 @@ export class CoreIframeUtilsProvider {
             return;
         }
 
+        if (!link.target || link.target === '_self') {
+            // Link needs to be opened in the same iframe. This is already handled properly, we don't need to do anything else.
+            // Links opened in the same iframe won't be captured by the app.
+            return;
+        }
+
         const urlParts = CoreUrl.parse(link.href);
         const originalHref = 'getAttribute' in link ? link.getAttribute('href') : link.originalHref;
-        if (!link.href || !originalHref || originalHref == '#' || !urlParts || urlParts.protocol === 'javascript') {
+        if (!link.href || !originalHref || originalHref === '#' || !urlParts || urlParts.protocol === 'javascript') {
             // Links with no URL and Javascript links are ignored.
             return;
         }
 
-        if (urlParts.protocol && !CoreUrl.isLocalFileUrlScheme(urlParts.protocol, urlParts.domain || '')) {
-            // Scheme suggests it's an external resource.
-            event && event.preventDefault();
-
-            const frameSrc = element && ((<HTMLIFrameElement> element).src || (<HTMLObjectElement> element).data);
-
-            // If the frame is not local, check the target to identify how to treat the link.
-            if (
-                element &&
-                frameSrc &&
-                !CoreUrl.isLocalFileUrl(frameSrc) &&
-                (!link.target || link.target == '_self')
-            ) {
-                // Load the link inside the frame itself.
-                if (element.tagName.toLowerCase() === 'object') {
-                    element.setAttribute('data', link.href);
-                } else {
-                    element.setAttribute('src', link.href);
-                }
-
-                return;
-            }
-
-            // The frame is local or the link needs to be opened in a new window. Open in browser.
-            if (!CoreSites.isLoggedIn()) {
-                CoreOpener.openInBrowser(link.href);
-            } else {
-                await CoreSites.getCurrentSite()?.openInBrowserWithAutoLogin(link.href);
-            }
-        } else if (link.target == '_parent' || link.target == '_top' || link.target == '_blank') {
-            // Opening links with _parent, _top or _blank can break the app. We'll open it in InAppBrowser.
-            event && event.preventDefault();
-
-            const filename = link.href.substring(link.href.lastIndexOf('/') + 1);
-
-            if (!CoreFileHelper.isOpenableInApp({ filename })) {
-                try {
-                    await CoreFileHelper.showConfirmOpenUnsupportedFile(false, { filename });
-                } catch (error) {
-                    return; // Cancelled, stop.
-                }
-            }
-
-            try {
-                await CoreOpener.openFile(link.href);
-            } catch (error) {
-                CoreDomUtils.showErrorModal(error);
-            }
-        } else if (CorePlatform.isIOS() && (!link.target || link.target == '_self') && element) {
-            // In cordova ios 4.1.0 links inside iframes stopped working. We'll manually treat them.
-            event && event.preventDefault();
-            if (element.tagName.toLowerCase() === 'object') {
-                element.setAttribute('data', link.href);
-            } else {
-                element.setAttribute('src', link.href);
-            }
+        try {
+            event?.preventDefault();
+            await CoreWindow.open(link.href, link.target);
+        } catch (error) {
+            CoreAlerts.showError(error);
         }
     }
 
@@ -622,7 +566,7 @@ export class CoreIframeUtilsProvider {
      * Open help modal for iframes.
      */
     openIframeHelpModal(): void {
-        CoreDomUtils.showAlertWithOptions({
+        CoreAlerts.show({
             header: Translate.instant('core.settings.ioscookies'),
             message: Translate.instant('core.ioscookieshelp'),
             buttons: [
@@ -689,7 +633,7 @@ export class CoreIframeUtilsProvider {
                 if (localUrl) {
                     CoreOpener.openFile(localUrl);
                 } else {
-                    CoreDomUtils.showErrorModal('core.networkerrormsg', true);
+                    CoreAlerts.showError(Translate.instant('core.networkerrormsg'));
                 }
 
                 return;

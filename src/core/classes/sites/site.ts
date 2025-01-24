@@ -24,7 +24,6 @@ import {
     CoreWSExternalWarning,
     CoreWSUploadFileResult,
 } from '@services/ws';
-import { CoreDomUtils } from '@services/utils/dom';
 import { CoreTimeUtils } from '@services/utils/time';
 import { CoreUrl } from '@singletons/url';
 import { CoreOpener, CoreOpenerOpenInBrowserOptions } from '@singletons/opener';
@@ -54,8 +53,9 @@ import { CoreSiteInfo } from './unauthenticated-site';
 import { CoreAuthenticatedSite, CoreAuthenticatedSiteOptionalData, CoreSiteWSPreSets, WSObservable } from './authenticated-site';
 import { firstValueFrom } from 'rxjs';
 import { CorePlatform } from '@services/platform';
-import { CoreLoadings } from '@services/loadings';
+import { CoreLoadings } from '@services/overlays/loadings';
 import { CorePromiseUtils } from '@singletons/promise-utils';
+import { CoreAlerts } from '@services/overlays/alerts';
 
 /**
  * Class that represents a site (combination of site + user).
@@ -195,6 +195,7 @@ export class CoreSite extends CoreAuthenticatedSite {
      * Check if the user authenticated in the site using an OAuth method.
      *
      * @returns Whether the user authenticated in the site using an OAuth method.
+     * @deprecated since 5.0. Use getOAuthId instead.
      */
     isOAuth(): boolean {
         return this.oauthId != null && this.oauthId !== undefined;
@@ -268,7 +269,6 @@ export class CoreSite extends CoreAuthenticatedSite {
      *
      * @param component Component name.
      * @param componentId Component id.
-     * @returns Promise resolved when the entries are deleted.
      */
     async deleteComponentFromCache(component: string, componentId?: number): Promise<void> {
         if (!component) {
@@ -284,7 +284,7 @@ export class CoreSite extends CoreAuthenticatedSite {
         await this.cacheTable.delete(params);
     }
 
-    /*
+    /**
      * Uploads a file using Cordova File API.
      *
      * @param filePath File path.
@@ -366,13 +366,17 @@ export class CoreSite extends CoreAuthenticatedSite {
      * @param url The url to be fixed.
      * @returns Promise resolved with the fixed URL.
      */
-    checkAndFixPluginfileURL(url: string): Promise<string> {
-        return this.checkTokenPluginFile(url).then(() => this.fixPluginfileURL(url));
+    async checkAndFixPluginfileURL(url: string): Promise<string> {
+        // Resolve the checking promise to make sure it's finished.
+        await this.checkTokenPluginFile(url);
+
+        // The previous promise (tokenPluginFileWorks) result will be used here.
+        return this.fixPluginfileURL(url);
     }
 
     /**
      * Generic function for adding the wstoken to Moodle urls and for pointing to the correct script.
-     * Uses CoreUtilsProvider.fixPluginfileURL, passing site's token.
+     * Uses CoreUrl.fixPluginfileURL, passing site's token.
      *
      * @param url The url to be fixed.
      * @returns Fixed URL.
@@ -386,8 +390,6 @@ export class CoreSite extends CoreAuthenticatedSite {
 
     /**
      * Deletes site's DB.
-     *
-     * @returns Promise to be resolved when the DB is deleted.
      */
     async deleteDB(): Promise<void> {
         await CoreDB.deleteDB('Site-' + this.id);
@@ -395,8 +397,6 @@ export class CoreSite extends CoreAuthenticatedSite {
 
     /**
      * Deletes site's folder.
-     *
-     * @returns Promise to be resolved when the DB is deleted.
      */
     async deleteFolder(): Promise<void> {
         if (!CoreFile.isAvailable() || !this.id) {
@@ -466,7 +466,6 @@ export class CoreSite extends CoreAuthenticatedSite {
      * @param url The URL to open.
      * @param alertMessage If defined, an alert will be shown before opening the browser.
      * @param options Other options.
-     * @returns Promise resolved when done, rejected otherwise.
      */
     async openInBrowserWithAutoLogin(
         url: string,
@@ -510,12 +509,11 @@ export class CoreSite extends CoreAuthenticatedSite {
 
         if (alertMessage) {
             // Show an alert first.
-            const alert = await CoreDomUtils.showAlert(
-                Translate.instant('core.notice'),
-                alertMessage,
-                undefined,
-                3000,
-            );
+            const alert = await CoreAlerts.show({
+                header: Translate.instant('core.notice'),
+                message: alertMessage,
+                autoCloseTime: 3000,
+            });
 
             await alert.onDidDismiss();
             options.showBrowserWarning = false; // A warning already shown, no need to show another.
@@ -598,8 +596,6 @@ export class CoreSite extends CoreAuthenticatedSite {
 
     /**
      * Invalidates config WS call.
-     *
-     * @returns Promise resolved when the data is invalidated.
      */
     async invalidateConfig(): Promise<void> {
         await this.invalidateWsCacheForKey(this.getConfigCacheKey());
@@ -637,8 +633,8 @@ export class CoreSite extends CoreAuthenticatedSite {
     /**
      * @inheritdoc
      */
-    protected getDisabledFeatures(): string | undefined {
-        return this.config ? this.getStoredConfig('tool_mobile_disabledfeatures') : super.getDisabledFeatures();
+    protected getSiteDisabledFeatures(): string | undefined {
+        return this.config ? this.getStoredConfig('tool_mobile_disabledfeatures') : super.getSiteDisabledFeatures();
     }
 
     /**
@@ -728,7 +724,6 @@ export class CoreSite extends CoreAuthenticatedSite {
      * Deletes a site setting.
      *
      * @param name The config name.
-     * @returns Promise resolved when done.
      */
     async deleteSiteConfig(name: string): Promise<void> {
         await this.configTable.deleteByPrimaryKey({ name });
@@ -760,13 +755,12 @@ export class CoreSite extends CoreAuthenticatedSite {
      *
      * @param name The config name.
      * @param value The config value. Can only store number or strings.
-     * @returns Promise resolved when done.
      */
     async setLocalSiteConfig(name: string, value: number | string): Promise<void> {
         await this.configTable.insert({ name, value });
     }
 
-    /*
+    /**
      * Check if tokenpluginfile script works in the site.
      *
      * @param url URL to check.
@@ -802,7 +796,6 @@ export class CoreSite extends CoreAuthenticatedSite {
      * Deletes last viewed records based on some conditions.
      *
      * @param conditions Conditions.
-     * @returns Promise resolved when done.
      */
     async deleteLastViewed(conditions?: Partial<CoreSiteLastViewedDBRecord>): Promise<void> {
         await this.lastViewedTable.delete(conditions);
@@ -853,7 +846,6 @@ export class CoreSite extends CoreAuthenticatedSite {
      * @param id ID.
      * @param value Last viewed item value.
      * @param options Options.
-     * @returns Promise resolved when done.
      */
     async storeLastViewed(
         component: string,

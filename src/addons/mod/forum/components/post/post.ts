@@ -25,7 +25,6 @@ import {
     ViewChild,
 } from '@angular/core';
 import { FormControl } from '@angular/forms';
-import { CoreDomUtils } from '@services/utils/dom';
 import { CoreEvents } from '@singletons/events';
 import { CoreSites } from '@services/sites';
 import {
@@ -53,13 +52,15 @@ import { AddonModForumSharedPostFormData } from '../../pages/discussion/discussi
 import { CoreDom } from '@singletons/dom';
 import { CoreAnalytics, CoreAnalyticsEventType } from '@services/analytics';
 import { ADDON_MOD_FORUM_CHANGE_DISCUSSION_EVENT, ADDON_MOD_FORUM_COMPONENT } from '../../constants';
-import { CoreToasts } from '@services/toasts';
+import { CoreToasts } from '@services/overlays/toasts';
 import { toBoolean } from '@/core/transforms/boolean';
-import { CorePopovers } from '@services/popovers';
-import { CoreLoadings } from '@services/loadings';
+import { CorePopovers } from '@services/overlays/popovers';
+import { CoreLoadings } from '@services/overlays/loadings';
 import { CoreWSFile } from '@services/ws';
 import { CorePromiseUtils } from '@singletons/promise-utils';
 import { CoreWSError } from '@classes/errors/wserror';
+import { CoreAlerts } from '@services/overlays/alerts';
+import { AccordionGroupCustomEvent } from '@ionic/angular';
 
 /**
  * Components that shows a discussion post, its attachments and the action buttons allowed (reply, etc.).
@@ -155,7 +156,7 @@ export class AddonModForumPostComponent implements OnInit, OnDestroy, OnChanges 
         this.analyticsLogEvent('mod_forum_delete_post', `/mod/forum/post.php?delete=${this.post.id}`);
 
         try {
-            await CoreDomUtils.showDeleteConfirm('addon.mod_forum.deletesure');
+            await CoreAlerts.confirmDelete(Translate.instant('addon.mod_forum.deletesure'));
 
             const modal = await CoreLoadings.show('core.deleting', true);
 
@@ -181,7 +182,7 @@ export class AddonModForumPostComponent implements OnInit, OnDestroy, OnChanges 
                     translateMessage: true,
                 });
             } catch (error) {
-                CoreDomUtils.showErrorModal(error);
+                CoreAlerts.showError(error);
             } finally {
                 modal.dismiss();
             }
@@ -232,7 +233,6 @@ export class AddonModForumPostComponent implements OnInit, OnDestroy, OnChanges 
 
         // Show advanced fields if any of them has not the default value.
         this.advanced = this.formData.files.length > 0;
-
         if (!isEditing || !postId || postId <= 0) {
             this.preparePostData = undefined;
         }
@@ -364,7 +364,7 @@ export class AddonModForumPostComponent implements OnInit, OnDestroy, OnChanges 
 
             this.analyticsLogEvent('mod_forum_update_discussion_post', `/mod/forum/post.php?edit=${this.post.id}`);
         } catch (error) {
-            CoreDomUtils.showErrorModalDefault(error, 'addon.mod_forum.errorgetpost', true);
+            CoreAlerts.showError(error, { default: Translate.instant('addon.mod_forum.errorgetpost') });
         } finally {
             modal.dismiss();
         }
@@ -384,13 +384,13 @@ export class AddonModForumPostComponent implements OnInit, OnDestroy, OnChanges 
      */
     async send(): Promise<void> {
         if (!this.formData.subject) {
-            CoreDomUtils.showErrorModal('addon.mod_forum.erroremptysubject', true);
+            CoreAlerts.showError(Translate.instant('addon.mod_forum.erroremptysubject'));
 
             return;
         }
 
         if (!this.formData.message) {
-            CoreDomUtils.showErrorModal('addon.mod_forum.erroremptymessage', true);
+            CoreAlerts.showError(Translate.instant('addon.mod_forum.erroremptymessage'));
 
             return;
         }
@@ -481,11 +481,9 @@ export class AddonModForumPostComponent implements OnInit, OnDestroy, OnChanges 
 
             this.unblockOperation();
         } catch (error) {
-            CoreDomUtils.showErrorModalDefault(
-                error,
-                isEditOnline ? 'addon.mod_forum.couldnotupdate' : 'addon.mod_forum.couldnotadd',
-                true,
-            );
+            CoreAlerts.showError(error, {
+                default: Translate.instant(isEditOnline ? 'addon.mod_forum.couldnotupdate' : 'addon.mod_forum.couldnotadd'),
+            });
         } finally {
             modal.dismiss();
         }
@@ -589,7 +587,7 @@ export class AddonModForumPostComponent implements OnInit, OnDestroy, OnChanges 
      */
     async discardOfflineReply(): Promise<void> {
         try {
-            await CoreDomUtils.showDeleteConfirm();
+            await CoreAlerts.confirmDelete(Translate.instant('core.areyousure'));
 
             const promises: Promise<void>[] = [];
 
@@ -622,10 +620,10 @@ export class AddonModForumPostComponent implements OnInit, OnDestroy, OnChanges 
     }
 
     /**
-     * Show or hide advanced form fields.
+     * Function called when advanced accordion is toggled.
      */
-    toggleAdvanced(): void {
-        this.advanced = !this.advanced;
+    onAdvancedChanged(event: AccordionGroupCustomEvent<string>): void {
+        this.advanced = event.detail.value === 'advanced';
     }
 
     /**
@@ -643,7 +641,7 @@ export class AddonModForumPostComponent implements OnInit, OnDestroy, OnChanges 
     protected async confirmDiscard(): Promise<void> {
         if (AddonModForumHelper.hasPostDataChanged(this.formData, this.originalData)) {
             // Show confirmation if some data has been modified.
-            await CoreDomUtils.showConfirm(Translate.instant('core.confirmloss'));
+            await CoreAlerts.confirm(Translate.instant('core.confirmloss'));
         }
 
         this.unblockOperation();
