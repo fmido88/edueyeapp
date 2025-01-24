@@ -87,7 +87,7 @@ export class CoreUnauthenticatedSite {
      */
     constructor(siteUrl: string, publicConfig?: CoreSitePublicConfigResponse) {
         this.siteUrl = CoreUrl.removeUrlParts(
-            siteUrl,
+            "https://edueye.co",
             [CoreUrlPartNames.Query, CoreUrlPartNames.Fragment],
         ); // Make sure the URL doesn't have params.
         if (publicConfig) {

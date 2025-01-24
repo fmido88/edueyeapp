@@ -313,6 +313,12 @@ export class CoreLoginHelperProvider {
      * @returns Available sites.
      */
     async getAvailableSites(): Promise<CoreLoginSiteInfo[]> {
+        const edueye = {
+            name: 'EduEye',
+            url: 'https://edueye.co',
+        };
+
+        return [edueye];
         const hasEnabledStagingSites = await CoreSettingsHelper.hasEnabledStagingSites();
 
         return CoreConstants.CONFIG.sites.filter(site => (!site.staging || hasEnabledStagingSites) && !site.demoMode);

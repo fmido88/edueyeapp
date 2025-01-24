@@ -41,7 +41,7 @@ describe('Site Home link handlers', () => {
         CoreContentLinksDelegate.registerHandler(new CoreSiteHomeIndexLinkHandlerService());
 
         // Act.
-        await CoreCustomURLSchemes.handleCustomURL(`moodlemobile://link=${siteUrl}/?redirect=0`);
+        await CoreCustomURLSchemes.handleCustomURL(`edueyemobile://link=${siteUrl}/?redirect=0`);
 
         // Assert.
         expect(CoreNavigator.navigateToSitePath).toHaveBeenCalledWith('/home/site', {

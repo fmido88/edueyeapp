@@ -68,7 +68,7 @@ export class CoreSettingsHelperProvider {
     protected syncPromises: { [s: string]: Promise<void> } = {};
     protected prefersDark?: MediaQueryList;
     protected colorSchemes: CoreColorScheme[] = [];
-    protected currentColorScheme = CoreColorScheme.LIGHT;
+    protected currentColorScheme = CoreColorScheme.SYSTEM;
     protected darkModeObservable = new Subject<boolean>();
 
     async initialize(): Promise<void> {
@@ -348,7 +348,7 @@ export class CoreSettingsHelperProvider {
         if (CoreConstants.CONFIG.forceColorScheme) {
             this.setColorScheme(CoreConstants.CONFIG.forceColorScheme);
         } else {
-            const scheme = await CoreConfig.get(CoreConstants.SETTINGS_COLOR_SCHEME, CoreColorScheme.LIGHT);
+            const scheme = await CoreConfig.get(CoreConstants.SETTINGS_COLOR_SCHEME, CoreColorScheme.SYSTEM);
             this.setColorScheme(scheme);
         }
     }
